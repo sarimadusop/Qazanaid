@@ -1,16 +1,18 @@
-import { useSession, useUpdateRecord, useCompleteSession } from "@/hooks/use-sessions";
+import { useSession, useUpdateRecord, useCompleteSession, useUploadOpnamePhoto } from "@/hooks/use-sessions";
 import { useCategories } from "@/hooks/use-products";
 import { useRole } from "@/hooks/use-role";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, CheckCircle2, Download, Search, Loader2, Filter } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, Search, Loader2, Filter, Camera, Image, X, FileArchive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/StatusBadge";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { useToast } from "@/hooks/use-toast";
+import { buildUrl } from "@shared/routes";
+import { api } from "@shared/routes";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +24,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function SessionDetail() {
   const { id } = useParams();
@@ -47,6 +55,10 @@ export default function SessionDetail() {
     });
   }, [session?.records, search, categoryFilter]);
 
+  const hasPhotos = useMemo(() => {
+    return session?.records?.some(r => r.photoUrl) ?? false;
+  }, [session?.records]);
+
   const exportToExcel = () => {
     if (!session?.records) return;
 
@@ -67,6 +79,11 @@ export default function SessionDetail() {
       title: "Export Successful",
       description: "The Excel file has been downloaded.",
     });
+  };
+
+  const downloadPhotosZip = () => {
+    const url = buildUrl(api.upload.downloadZip.path, { id: sessionId });
+    window.open(url, "_blank");
   };
 
   const handleComplete = () => {
@@ -95,6 +112,13 @@ export default function SessionDetail() {
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
+          {hasPhotos && (
+            <Button variant="outline" onClick={downloadPhotosZip} data-testid="button-download-zip">
+              <FileArchive className="w-4 h-4 mr-2" />
+              Download Foto ZIP
+            </Button>
+          )}
+
           <Button variant="outline" onClick={exportToExcel} data-testid="button-export">
             <Download className="w-4 h-4 mr-2" />
             Export Excel
@@ -157,10 +181,11 @@ export default function SessionDetail() {
           <table className="w-full text-left text-sm">
             <thead className="bg-muted/30 border-b border-border/50">
               <tr>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[20%]">SKU</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[30%]">Product</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[15%]">Category</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[25%] text-center">Actual Count</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[15%]">SKU</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[25%]">Product</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[12%]">Category</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[20%] text-center">Actual Count</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[18%] text-center">Foto</th>
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[10%]">Status</th>
               </tr>
             </thead>
@@ -183,8 +208,11 @@ export default function SessionDetail() {
 
 function RecordRow({ record, sessionId, readOnly }: { record: any; sessionId: number; readOnly: boolean }) {
   const updateRecord = useUpdateRecord();
+  const uploadPhoto = useUploadOpnamePhoto();
   const [actual, setActual] = useState(record.actualStock?.toString() ?? "");
   const [isFocused, setIsFocused] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleBlur = () => {
     setIsFocused(false);
@@ -199,42 +227,124 @@ function RecordRow({ record, sessionId, readOnly }: { record: any; sessionId: nu
     }
   };
 
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    uploadPhoto.mutate({
+      sessionId,
+      productId: record.productId,
+      file,
+    });
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   return (
-    <tr className={cn("transition-colors", isFocused ? "bg-blue-50/50" : "hover:bg-muted/10")} data-testid={`row-record-${record.id}`}>
-      <td className="px-6 py-4 font-mono text-muted-foreground">{record.product.sku}</td>
-      <td className="px-6 py-4 font-medium text-foreground">{record.product.name}</td>
-      <td className="px-6 py-4 text-muted-foreground">{record.product.category || "-"}</td>
-      <td className="px-6 py-3">
-        {readOnly ? (
-          <div className="text-center font-bold text-foreground py-2 px-3 bg-muted/20 rounded-lg">
-            {record.actualStock ?? "-"}
+    <>
+      <tr className={cn("transition-colors", isFocused ? "bg-blue-50/50" : "hover:bg-muted/10")} data-testid={`row-record-${record.id}`}>
+        <td className="px-6 py-4 font-mono text-muted-foreground">{record.product.sku}</td>
+        <td className="px-6 py-4 font-medium text-foreground">{record.product.name}</td>
+        <td className="px-6 py-4 text-muted-foreground">{record.product.category || "-"}</td>
+        <td className="px-6 py-3">
+          {readOnly ? (
+            <div className="text-center font-bold text-foreground py-2 px-3 bg-muted/20 rounded-lg">
+              {record.actualStock ?? "-"}
+            </div>
+          ) : (
+            <div className="flex justify-center">
+              <Input
+                type="number"
+                className={cn(
+                  "w-24 text-center font-bold transition-all",
+                  actual !== "" && "border-primary/50 bg-primary/5 text-primary"
+                )}
+                placeholder="-"
+                value={actual}
+                onChange={(e) => setActual(e.target.value)}
+                onFocus={() => setIsFocused(true)}
+                onBlur={handleBlur}
+                disabled={updateRecord.isPending}
+                data-testid={`input-count-${record.productId}`}
+              />
+            </div>
+          )}
+        </td>
+        <td className="px-6 py-3">
+          <div className="flex items-center justify-center gap-2">
+            {record.photoUrl ? (
+              <button
+                onClick={() => setPreviewOpen(true)}
+                className="relative group cursor-pointer"
+                data-testid={`button-view-photo-${record.productId}`}
+              >
+                <img
+                  src={record.photoUrl}
+                  alt={`Foto ${record.product.name}`}
+                  className="w-10 h-10 rounded-md object-cover border border-border/50"
+                />
+                <div className="absolute inset-0 bg-black/40 rounded-md opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <Image className="w-4 h-4 text-white" />
+                </div>
+              </button>
+            ) : (
+              <div className="w-10 h-10 rounded-md border border-dashed border-border/50 flex items-center justify-center text-muted-foreground/30">
+                <Camera className="w-4 h-4" />
+              </div>
+            )}
+            {!readOnly && (
+              <>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  ref={fileInputRef}
+                  onChange={handlePhotoUpload}
+                  data-testid={`input-photo-${record.productId}`}
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadPhoto.isPending}
+                  data-testid={`button-upload-photo-${record.productId}`}
+                >
+                  {uploadPhoto.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Camera className="w-4 h-4" />
+                  )}
+                </Button>
+              </>
+            )}
           </div>
-        ) : (
-          <div className="flex justify-center">
-            <Input
-              type="number"
-              className={cn(
-                "w-24 text-center font-bold transition-all",
-                actual !== "" && "border-primary/50 bg-primary/5 text-primary"
-              )}
-              placeholder="-"
-              value={actual}
-              onChange={(e) => setActual(e.target.value)}
-              onFocus={() => setIsFocused(true)}
-              onBlur={handleBlur}
-              disabled={updateRecord.isPending}
-              data-testid={`input-count-${record.productId}`}
+        </td>
+        <td className="px-6 py-4">
+          {record.actualStock !== null ? (
+            <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto" />
+          ) : (
+            <div className="w-2 h-2 rounded-full bg-muted-foreground/20 mx-auto" />
+          )}
+        </td>
+      </tr>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Foto Opname - {record.product.name}</DialogTitle>
+          </DialogHeader>
+          {record.photoUrl && (
+            <img
+              src={record.photoUrl}
+              alt={`Foto ${record.product.name}`}
+              className="w-full rounded-lg object-contain max-h-[60vh]"
+              data-testid={`img-preview-${record.productId}`}
             />
-          </div>
-        )}
-      </td>
-      <td className="px-6 py-4">
-        {record.actualStock !== null ? (
-          <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto" />
-        ) : (
-          <div className="w-2 h-2 rounded-full bg-muted-foreground/20 mx-auto" />
-        )}
-      </td>
-    </tr>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

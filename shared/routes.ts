@@ -149,6 +149,22 @@ export const api = {
         400: errorSchemas.validation,
       },
     },
+    opnamePhoto: {
+      method: 'POST' as const,
+      path: '/api/upload/opname-photo/:sessionId/:productId' as const,
+      responses: {
+        200: z.object({ url: z.string() }),
+        400: errorSchemas.validation,
+      },
+    },
+    downloadZip: {
+      method: 'GET' as const,
+      path: '/api/sessions/:id/download-photos' as const,
+      responses: {
+        200: z.any(),
+        404: errorSchemas.notFound,
+      },
+    },
   },
   excel: {
     template: {

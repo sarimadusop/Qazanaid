@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import { type OpnameSession, type OpnameSessionWithRecords } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 export function useSessions() {
   return useQuery<OpnameSession[]>({
@@ -91,6 +92,36 @@ export function useUpdateRecord() {
     },
     onSuccess: (_, { sessionId }) => {
       queryClient.invalidateQueries({ queryKey: [api.sessions.get.path, sessionId] });
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
+export function useUploadOpnamePhoto() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ sessionId, productId, file }: { sessionId: number; productId: number; file: File }) => {
+      const url = buildUrl(api.upload.opnamePhoto.path, { sessionId, productId });
+      const formData = new FormData();
+      formData.append("photo", file);
+      const res = await fetch(url, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Upload failed");
+      }
+      return res.json();
+    },
+    onSuccess: (_, { sessionId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.sessions.get.path, sessionId] });
+      toast({ title: "Foto Berhasil Diupload", description: "Foto opname sudah tersimpan." });
     },
     onError: (error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });

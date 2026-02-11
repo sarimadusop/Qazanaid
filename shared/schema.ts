@@ -39,6 +39,7 @@ export const opnameRecords = pgTable("opname_records", {
   productId: integer("product_id").references(() => products.id).notNull(),
   actualStock: integer("actual_stock"),
   notes: text("notes"),
+  photoUrl: text("photo_url"),
 });
 
 export const opnameRecordsRelations = relations(opnameRecords, ({ one }) => ({
