@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
-import { api } from "@shared/routes";
+import { api, buildUrl } from "@shared/routes";
 import { z } from "zod";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import multer from "multer";
@@ -9,6 +9,7 @@ import path from "path";
 import fs from "fs";
 import * as XLSX from "xlsx";
 import { authStorage } from "./replit_integrations/auth/storage";
+import archiver from "archiver";
 
 const upload = multer({ dest: "/tmp/uploads", limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -196,7 +197,8 @@ export async function registerRoutes(
       }
 
       const destPath = path.join(publicDir, filename);
-      fs.renameSync(req.file.path, destPath);
+      fs.copyFileSync(req.file.path, destPath);
+      fs.unlinkSync(req.file.path);
 
       const url = `/uploads/${filename}`;
       await storage.updateProduct(productId, { photoUrl: url });
@@ -205,6 +207,97 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Upload error:", err);
       res.status(500).json({ message: "Upload failed" });
+    }
+  });
+
+  // === Opname Photo Upload ===
+  app.post(api.upload.opnamePhoto.path, isAuthenticated, requireRole("admin", "stock_counter"), upload.single("photo"), async (req, res) => {
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const productId = Number(req.params.productId);
+      const adminId = await getTeamAdminId(req);
+
+      const session = await storage.getSession(sessionId);
+      if (!session || session.userId !== adminId) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+
+      const product = await storage.getProduct(productId);
+      if (!product || product.userId !== adminId) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+      const safeName = product.name.replace(/[^a-zA-Z0-9]/g, "_");
+      const ext = path.extname(req.file.originalname) || ".jpg";
+      const filename = `${safeName}SO_${dateStr}${ext}`;
+
+      const publicDir = path.join(process.cwd(), "client", "public", "uploads");
+      if (!fs.existsSync(publicDir)) {
+        fs.mkdirSync(publicDir, { recursive: true });
+      }
+
+      const destPath = path.join(publicDir, filename);
+      fs.copyFileSync(req.file.path, destPath);
+      fs.unlinkSync(req.file.path);
+
+      const url = `/uploads/${filename}`;
+      await storage.updateRecordPhoto(sessionId, productId, url);
+
+      res.json({ url });
+    } catch (err) {
+      console.error("Opname photo upload error:", err);
+      res.status(500).json({ message: "Upload failed" });
+    }
+  });
+
+  // === Download ZIP Photos ===
+  app.get(api.upload.downloadZip.path, isAuthenticated, async (req, res) => {
+    try {
+      const sessionId = Number(req.params.id);
+      const adminId = await getTeamAdminId(req);
+
+      const session = await storage.getSession(sessionId);
+      if (!session || session.userId !== adminId) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+
+      const recordsWithPhotos = session.records.filter(r => r.photoUrl);
+      if (recordsWithPhotos.length === 0) {
+        return res.status(404).json({ message: "Tidak ada foto untuk didownload" });
+      }
+
+      const safeTitle = session.title.replace(/[^a-zA-Z0-9]/g, "_");
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename=${safeTitle}_Photos.zip`);
+
+      const archive = archiver("zip", { zlib: { level: 5 } });
+      archive.pipe(res);
+
+      for (const record of recordsWithPhotos) {
+        const relativePath = record.photoUrl!.replace(/^\//, "");
+        const filePath = path.join(process.cwd(), "client", "public", relativePath);
+        if (fs.existsSync(filePath)) {
+          const ext = path.extname(record.photoUrl!) || ".jpg";
+          const now = new Date(session.startedAt);
+          const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+          const safeName = record.product.name.replace(/[^a-zA-Z0-9]/g, "_");
+          const zipFilename = `${safeName}SO_${dateStr}${ext}`;
+          archive.file(filePath, { name: zipFilename });
+        }
+      }
+
+      await archive.finalize();
+    } catch (err) {
+      console.error("ZIP download error:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ message: "Failed to create ZIP" });
+      }
     }
   });
 

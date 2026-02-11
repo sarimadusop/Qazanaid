@@ -22,6 +22,7 @@ export interface IStorage {
   completeSession(id: number): Promise<OpnameSession>;
 
   updateRecord(sessionId: number, productId: number, actualStock: number, notes?: string): Promise<OpnameRecord>;
+  updateRecordPhoto(sessionId: number, productId: number, photoUrl: string): Promise<OpnameRecord>;
 
   getUserRole(userId: string): Promise<UserRole | undefined>;
   setUserRole(data: InsertUserRole): Promise<UserRole>;
@@ -122,6 +123,27 @@ export class DatabaseStorage implements IStorage {
         productId,
         actualStock,
         notes
+      }).returning();
+      return created;
+    }
+  }
+
+  async updateRecordPhoto(sessionId: number, productId: number, photoUrl: string): Promise<OpnameRecord> {
+    const [existing] = await db.select().from(opnameRecords).where(
+      and(eq(opnameRecords.sessionId, sessionId), eq(opnameRecords.productId, productId))
+    );
+
+    if (existing) {
+      const [updated] = await db.update(opnameRecords)
+        .set({ photoUrl })
+        .where(eq(opnameRecords.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(opnameRecords).values({
+        sessionId,
+        productId,
+        photoUrl
       }).returning();
       return created;
     }
