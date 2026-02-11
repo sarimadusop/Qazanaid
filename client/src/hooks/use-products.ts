@@ -3,6 +3,12 @@ import { api, buildUrl } from "@shared/routes";
 import { type Product } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 
+export type ExcelImportResult = {
+  imported: number;
+  skipped: number;
+  errors: { row: number; message: string }[];
+};
+
 export function useProducts() {
   return useQuery<Product[]>({
     queryKey: [api.products.list.path],
@@ -124,6 +130,41 @@ export function useUploadPhoto() {
     },
     onError: (error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
+export function useImportExcel() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation<ExcelImportResult, Error, File>({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(api.excel.import.path, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Gagal import Excel");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: [api.products.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.products.categories.path] });
+      if (data.imported > 0) {
+        toast({
+          title: "Import Berhasil",
+          description: `${data.imported} produk berhasil diimport${data.skipped > 0 ? `, ${data.skipped} dilewati` : ""}.`,
+        });
+      }
+    },
+    onError: (error) => {
+      toast({ title: "Import Gagal", description: error.message, variant: "destructive" });
     },
   });
 }

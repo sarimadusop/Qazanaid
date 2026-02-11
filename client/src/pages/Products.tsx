@@ -1,7 +1,8 @@
 import { useState, useRef } from "react";
-import { useProducts, useCreateProduct, useDeleteProduct, useCategories, useUploadPhoto } from "@/hooks/use-products";
+import { useProducts, useCreateProduct, useDeleteProduct, useCategories, useUploadPhoto, useImportExcel, type ExcelImportResult } from "@/hooks/use-products";
 import { useRole } from "@/hooks/use-role";
-import { Plus, Search, Trash2, Box, Loader2, Upload, ImageIcon, Filter } from "lucide-react";
+import { api } from "@shared/routes";
+import { Plus, Search, Trash2, Box, Loader2, Upload, ImageIcon, Filter, Download, FileSpreadsheet, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,23 @@ export default function Products() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [importResult, setImportResult] = useState<ExcelImportResult | null>(null);
+  const [isImportResultOpen, setIsImportResultOpen] = useState(false);
+  const importExcel = useImportExcel();
+  const excelInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      importExcel.mutate(file, {
+        onSuccess: (result) => {
+          setImportResult(result);
+          setIsImportResultOpen(true);
+        },
+      });
+      e.target.value = "";
+    }
+  };
 
   const filteredProducts = products?.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -70,10 +88,47 @@ export default function Products() {
             </SelectContent>
           </Select>
           {canManageSku && (
-            <CreateProductDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} />
+            <>
+              <Button
+                variant="outline"
+                onClick={() => window.open(api.excel.template.path, "_blank")}
+                data-testid="button-download-template"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Template
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => excelInputRef.current?.click()}
+                disabled={importExcel.isPending}
+                data-testid="button-import-excel"
+              >
+                {importExcel.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                )}
+                Import Excel
+              </Button>
+              <input
+                ref={excelInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={handleExcelUpload}
+                data-testid="input-excel-file"
+              />
+              <CreateProductDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} />
+            </>
           )}
         </div>
       </div>
+
+      <ImportResultDialog
+        result={importResult}
+        open={isImportResultOpen}
+        onOpenChange={setIsImportResultOpen}
+      />
 
       <div className="bg-card border border-border/50 rounded-2xl shadow-sm overflow-hidden">
         {isLoading ? (
@@ -313,6 +368,58 @@ function CreateProductDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             </div>
           </form>
         </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ImportResultDialog({ result, open, onOpenChange }: { result: ExcelImportResult | null; open: boolean; onOpenChange: (open: boolean) => void }) {
+  if (!result) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Hasil Import Excel</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-center gap-3 p-3 rounded-md bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900">
+              <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 shrink-0" />
+              <div>
+                <div className="text-sm text-muted-foreground">Berhasil</div>
+                <div className="text-lg font-bold text-green-700 dark:text-green-400" data-testid="text-import-success-count">{result.imported}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-md bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900">
+              <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-400 shrink-0" />
+              <div>
+                <div className="text-sm text-muted-foreground">Dilewati</div>
+                <div className="text-lg font-bold text-orange-700 dark:text-orange-400" data-testid="text-import-skipped-count">{result.skipped}</div>
+              </div>
+            </div>
+          </div>
+
+          {result.errors.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-muted-foreground">Detail Error:</h4>
+              <div className="max-h-48 overflow-y-auto space-y-1">
+                {result.errors.map((err, i) => (
+                  <div key={i} className="flex items-start gap-2 text-sm p-2 rounded bg-muted/50" data-testid={`text-import-error-${i}`}>
+                    <XCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                    <span>
+                      <strong>Baris {err.row}:</strong> {err.message}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <Button onClick={() => onOpenChange(false)} data-testid="button-close-import-result">Tutup</Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
