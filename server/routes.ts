@@ -12,7 +12,7 @@ import * as XLSX from "xlsx";
 const upload = multer({ dest: "/tmp/uploads", limits: { fileSize: 10 * 1024 * 1024 } });
 
 function getUserId(req: Request): string {
-  return (req.user as any)?.claims?.sub;
+  return (req.session as any)?.userId;
 }
 
 async function getUserRole(req: Request) {
@@ -51,7 +51,7 @@ export async function registerRoutes(
 
   app.get(api.roles.list.path, isAuthenticated, requireRole("admin"), async (req, res) => {
     const roles = await storage.getAllUserRoles();
-    const { users } = await import("@shared/schema");
+    const { users } = await import("@shared/models/auth");
     const { db } = await import("./db");
     const allUsers = await db.select().from(users);
     
@@ -59,6 +59,7 @@ export async function registerRoutes(
       const user = allUsers.find(u => u.id === r.userId);
       return {
         ...r,
+        username: user?.username,
         email: user?.email,
         firstName: user?.firstName,
         lastName: user?.lastName,
