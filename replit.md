@@ -6,6 +6,7 @@ A full-stack inventory management application for stock opname (stock counting/a
 ## Recent Changes
 - **2026-02-11**: Added Replit Auth login, role-based access control (admin, sku_manager, stock_counter), user-scoped data, photo upload for products, category filtering on products and session detail pages
 - **2026-02-11**: User roles page for admin to manage user access levels
+- **2026-02-11**: Excel template download & bulk import for products (with validation: duplicate SKU, missing fields, error reporting)
 
 ## Architecture
 
