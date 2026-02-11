@@ -211,7 +211,7 @@ export async function registerRoutes(
   });
 
   // === Opname Photo Upload ===
-  app.post(api.upload.opnamePhoto.path, isAuthenticated, requireRole("admin", "stock_counter"), upload.single("photo"), async (req, res) => {
+  app.post(api.upload.opnamePhoto.path, isAuthenticated, upload.single("photo"), async (req, res) => {
     try {
       const sessionId = Number(req.params.sessionId);
       const productId = Number(req.params.productId);

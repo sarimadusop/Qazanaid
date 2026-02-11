@@ -196,6 +196,7 @@ export default function SessionDetail() {
                   record={record}
                   sessionId={sessionId}
                   readOnly={isCompleted || !canCount}
+                  canUploadPhoto={true}
                 />
               ))}
             </tbody>
@@ -206,7 +207,7 @@ export default function SessionDetail() {
   );
 }
 
-function RecordRow({ record, sessionId, readOnly }: { record: any; sessionId: number; readOnly: boolean }) {
+function RecordRow({ record, sessionId, readOnly, canUploadPhoto }: { record: any; sessionId: number; readOnly: boolean; canUploadPhoto: boolean }) {
   const updateRecord = useUpdateRecord();
   const uploadPhoto = useUploadOpnamePhoto();
   const [actual, setActual] = useState(record.actualStock?.toString() ?? "");
@@ -294,7 +295,7 @@ function RecordRow({ record, sessionId, readOnly }: { record: any; sessionId: nu
                 <Camera className="w-4 h-4" />
               </div>
             )}
-            {!readOnly && (
+            {canUploadPhoto && (
               <>
                 <input
                   type="file"
