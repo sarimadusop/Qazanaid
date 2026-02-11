@@ -74,15 +74,13 @@ export class DatabaseStorage implements IStorage {
     // 1. Create the session
     const [session] = await db.insert(opnameSessions).values(insertSession).returning();
 
-    // 2. Snapshot all current products into records
+    // 2. Initialize records for all existing products
     const allProducts = await this.getProducts();
     if (allProducts.length > 0) {
         const recordsToInsert = allProducts.map(p => ({
             sessionId: session.id,
             productId: p.id,
-            systemStockSnapshot: p.currentStock,
             actualStock: null,
-            difference: null,
         }));
         await db.insert(opnameRecords).values(recordsToInsert);
     }
@@ -116,26 +114,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateRecord(sessionId: number, productId: number, actualStock: number, notes?: string): Promise<OpnameRecord> {
-    // Find existing record or create if product was added after session start (edge case)
     const [existing] = await db.select().from(opnameRecords).where(
         eq(opnameRecords.sessionId, sessionId)
     ).where(
         eq(opnameRecords.productId, productId)
     );
 
-    let systemStock = existing ? existing.systemStockSnapshot : 0;
-    
-    // If it's a new record (product added mid-session), get current system stock
-    if (!existing) {
-        const p = await this.getProduct(productId);
-        systemStock = p ? p.currentStock : 0;
-    }
-
-    const difference = actualStock - systemStock;
-
     if (existing) {
         const [updated] = await db.update(opnameRecords)
-            .set({ actualStock, difference, notes })
+            .set({ actualStock, notes })
             .where(eq(opnameRecords.id, existing.id))
             .returning();
         return updated;
@@ -143,9 +130,7 @@ export class DatabaseStorage implements IStorage {
         const [created] = await db.insert(opnameRecords).values({
             sessionId,
             productId,
-            systemStockSnapshot: systemStock,
             actualStock,
-            difference,
             notes
         }).returning();
         return created;
