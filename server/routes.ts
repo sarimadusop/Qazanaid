@@ -82,10 +82,7 @@ export async function registerRoutes(
   // === Products ===
   app.get(api.products.categories.path, isAuthenticated, async (req, res) => {
     const userId = getUserId(req);
-    const role = await getUserRole(req);
-    const prods = role === "admin"
-      ? await storage.getProducts(userId)
-      : await storage.getProducts(userId);
+    const prods = await storage.getProducts(userId);
     const cats = [...new Set(prods.map(p => p.category).filter(Boolean))] as string[];
     res.json(cats);
   });
@@ -116,6 +113,11 @@ export async function registerRoutes(
   app.put(api.products.update.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
     try {
       const id = Number(req.params.id);
+      const userId = getUserId(req);
+      const existing = await storage.getProduct(id);
+      if (!existing || existing.userId !== userId) {
+        return res.status(404).json({ message: "Product not found" });
+      }
       const input = api.products.update.input.parse(req.body);
       const product = await storage.updateProduct(id, input);
       res.json(product);
@@ -125,6 +127,11 @@ export async function registerRoutes(
   });
 
   app.delete(api.products.delete.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
+    const userId = getUserId(req);
+    const existing = await storage.getProduct(Number(req.params.id));
+    if (!existing || existing.userId !== userId) {
+      return res.status(404).json({ message: "Product not found" });
+    }
     await storage.deleteProduct(Number(req.params.id));
     res.sendStatus(204);
   });
@@ -133,8 +140,9 @@ export async function registerRoutes(
   app.post(api.upload.photo.path, isAuthenticated, requireRole("admin", "sku_manager"), upload.single("photo"), async (req, res) => {
     try {
       const productId = Number(req.params.productId);
+      const userId = getUserId(req);
       const product = await storage.getProduct(productId);
-      if (!product) {
+      if (!product || product.userId !== userId) {
         return res.status(404).json({ message: "Product not found" });
       }
 
@@ -187,21 +195,32 @@ export async function registerRoutes(
   });
 
   app.get(api.sessions.get.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
     const session = await storage.getSession(Number(req.params.id));
-    if (!session) {
+    if (!session || session.userId !== userId) {
       return res.status(404).json({ message: 'Session not found' });
     }
     res.json(session);
   });
 
   app.post(api.sessions.complete.path, isAuthenticated, requireRole("admin", "stock_counter"), async (req, res) => {
-    const session = await storage.completeSession(Number(req.params.id));
-    res.json(session);
+    const userId = getUserId(req);
+    const session = await storage.getSession(Number(req.params.id));
+    if (!session || session.userId !== userId) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
+    const completed = await storage.completeSession(Number(req.params.id));
+    res.json(completed);
   });
 
   // === Records ===
   app.post(api.records.update.path, isAuthenticated, requireRole("admin", "stock_counter"), async (req, res) => {
+    const userId = getUserId(req);
     const sessionId = Number(req.params.sessionId);
+    const session = await storage.getSession(sessionId);
+    if (!session || session.userId !== userId) {
+      return res.status(404).json({ message: 'Session not found' });
+    }
     const { productId, actualStock, notes } = req.body;
     
     if (typeof productId !== 'number' || typeof actualStock !== 'number') {
