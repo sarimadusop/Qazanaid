@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Package, ClipboardList, LayoutDashboard, Menu, X, Box, Shield, LogOut } from "lucide-react";
+import { Package, ClipboardList, LayoutDashboard, Menu, X, Box, Shield, LogOut, UserCog } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -19,6 +19,7 @@ export function Sidebar() {
     { name: "Products / SKU", href: "/products", icon: Box },
     { name: "Opname Sessions", href: "/sessions", icon: ClipboardList },
     ...(isAdmin ? [{ name: "User Roles", href: "/roles", icon: Shield }] : []),
+    { name: "Edit Profil", href: "/profile", icon: UserCog },
   ];
 
   const displayName = user?.firstName && user?.lastName

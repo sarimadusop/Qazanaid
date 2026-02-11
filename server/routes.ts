@@ -8,11 +8,21 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import * as XLSX from "xlsx";
+import { authStorage } from "./replit_integrations/auth/storage";
 
 const upload = multer({ dest: "/tmp/uploads", limits: { fileSize: 10 * 1024 * 1024 } });
 
 function getUserId(req: Request): string {
   return (req.session as any)?.userId;
+}
+
+async function getTeamAdminId(req: Request): Promise<string> {
+  const userId = getUserId(req);
+  const user = await authStorage.getUser(userId);
+  if (user?.adminId) {
+    return user.adminId;
+  }
+  return userId;
 }
 
 async function getUserRole(req: Request) {
@@ -50,12 +60,19 @@ export async function registerRoutes(
   });
 
   app.get(api.roles.list.path, isAuthenticated, requireRole("admin"), async (req, res) => {
+    const adminId = getUserId(req);
     const roles = await storage.getAllUserRoles();
     const { users } = await import("@shared/models/auth");
     const { db } = await import("./db");
-    const allUsers = await db.select().from(users);
+    const { eq, or } = await import("drizzle-orm");
+    const allUsers = await db.select().from(users).where(
+      or(eq(users.id, adminId), eq(users.adminId, adminId))
+    );
     
-    const enriched = roles.map(r => {
+    const teamUserIds = new Set(allUsers.map(u => u.id));
+    const teamRoles = roles.filter(r => teamUserIds.has(r.userId));
+    
+    const enriched = teamRoles.map(r => {
       const user = allUsers.find(u => u.id === r.userId);
       return {
         ...r,
@@ -63,6 +80,7 @@ export async function registerRoutes(
         email: user?.email,
         firstName: user?.firstName,
         lastName: user?.lastName,
+        adminId: user?.adminId,
       };
     });
     res.json(enriched);
@@ -71,6 +89,21 @@ export async function registerRoutes(
   app.post(api.roles.set.path, isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
       const input = api.roles.set.input.parse(req.body);
+      const adminId = getUserId(req);
+      
+      const { users } = await import("@shared/models/auth");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+      const [targetUser] = await db.select().from(users).where(eq(users.id, input.userId));
+      
+      if (!targetUser || (targetUser.id !== adminId && targetUser.adminId !== adminId)) {
+        return res.status(403).json({ message: "Anda tidak bisa mengubah role user ini" });
+      }
+      
+      if (targetUser.id === adminId) {
+        return res.status(400).json({ message: "Tidak bisa mengubah role sendiri" });
+      }
+      
       const role = await storage.setUserRole(input);
       res.json(role);
     } catch (err) {
@@ -83,23 +116,23 @@ export async function registerRoutes(
 
   // === Products ===
   app.get(api.products.categories.path, isAuthenticated, async (req, res) => {
-    const userId = getUserId(req);
-    const prods = await storage.getProducts(userId);
+    const adminId = await getTeamAdminId(req);
+    const prods = await storage.getProducts(adminId);
     const cats = Array.from(new Set(prods.map(p => p.category).filter(Boolean))) as string[];
     res.json(cats);
   });
 
   app.get(api.products.list.path, isAuthenticated, async (req, res) => {
-    const userId = getUserId(req);
-    const prods = await storage.getProducts(userId);
+    const adminId = await getTeamAdminId(req);
+    const prods = await storage.getProducts(adminId);
     res.json(prods);
   });
 
   app.post(api.products.create.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
     try {
       const input = api.products.create.input.parse(req.body);
-      const userId = getUserId(req);
-      const product = await storage.createProduct({ ...input, userId });
+      const adminId = await getTeamAdminId(req);
+      const product = await storage.createProduct({ ...input, userId: adminId });
       res.status(201).json(product);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -115,9 +148,9 @@ export async function registerRoutes(
   app.put(api.products.update.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const userId = getUserId(req);
+      const adminId = await getTeamAdminId(req);
       const existing = await storage.getProduct(id);
-      if (!existing || existing.userId !== userId) {
+      if (!existing || existing.userId !== adminId) {
         return res.status(404).json({ message: "Product not found" });
       }
       const input = api.products.update.input.parse(req.body);
@@ -129,22 +162,22 @@ export async function registerRoutes(
   });
 
   app.delete(api.products.delete.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
-    const userId = getUserId(req);
+    const adminId = await getTeamAdminId(req);
     const existing = await storage.getProduct(Number(req.params.id));
-    if (!existing || existing.userId !== userId) {
+    if (!existing || existing.userId !== adminId) {
       return res.status(404).json({ message: "Product not found" });
     }
     await storage.deleteProduct(Number(req.params.id));
     res.sendStatus(204);
   });
 
-  // === Photo Upload (local storage for now, Google Drive setup pending) ===
+  // === Photo Upload ===
   app.post(api.upload.photo.path, isAuthenticated, requireRole("admin", "sku_manager"), upload.single("photo"), async (req, res) => {
     try {
       const productId = Number(req.params.productId);
-      const userId = getUserId(req);
+      const adminId = await getTeamAdminId(req);
       const product = await storage.getProduct(productId);
-      if (!product || product.userId !== userId) {
+      if (!product || product.userId !== adminId) {
         return res.status(404).json({ message: "Product not found" });
       }
 
@@ -177,16 +210,16 @@ export async function registerRoutes(
 
   // === Sessions ===
   app.get(api.sessions.list.path, isAuthenticated, async (req, res) => {
-    const userId = getUserId(req);
-    const sessions = await storage.getSessions(userId);
+    const adminId = await getTeamAdminId(req);
+    const sessions = await storage.getSessions(adminId);
     res.json(sessions);
   });
 
   app.post(api.sessions.create.path, isAuthenticated, requireRole("admin", "stock_counter"), async (req, res) => {
     try {
       const input = api.sessions.create.input.parse(req.body);
-      const userId = getUserId(req);
-      const session = await storage.createSession({ ...input, userId });
+      const adminId = await getTeamAdminId(req);
+      const session = await storage.createSession({ ...input, userId: adminId });
       res.status(201).json(session);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -197,18 +230,18 @@ export async function registerRoutes(
   });
 
   app.get(api.sessions.get.path, isAuthenticated, async (req, res) => {
-    const userId = getUserId(req);
+    const adminId = await getTeamAdminId(req);
     const session = await storage.getSession(Number(req.params.id));
-    if (!session || session.userId !== userId) {
+    if (!session || session.userId !== adminId) {
       return res.status(404).json({ message: 'Session not found' });
     }
     res.json(session);
   });
 
   app.post(api.sessions.complete.path, isAuthenticated, requireRole("admin", "stock_counter"), async (req, res) => {
-    const userId = getUserId(req);
+    const adminId = await getTeamAdminId(req);
     const session = await storage.getSession(Number(req.params.id));
-    if (!session || session.userId !== userId) {
+    if (!session || session.userId !== adminId) {
       return res.status(404).json({ message: 'Session not found' });
     }
     const completed = await storage.completeSession(Number(req.params.id));
@@ -217,10 +250,10 @@ export async function registerRoutes(
 
   // === Records ===
   app.post(api.records.update.path, isAuthenticated, requireRole("admin", "stock_counter"), async (req, res) => {
-    const userId = getUserId(req);
+    const adminId = await getTeamAdminId(req);
     const sessionId = Number(req.params.sessionId);
     const session = await storage.getSession(sessionId);
-    if (!session || session.userId !== userId) {
+    if (!session || session.userId !== adminId) {
       return res.status(404).json({ message: 'Session not found' });
     }
     const { productId, actualStock, notes } = req.body;
@@ -266,8 +299,8 @@ export async function registerRoutes(
         return res.status(400).json({ message: "File kosong atau tidak memiliki data" });
       }
 
-      const userId = getUserId(req);
-      const existingProducts = await storage.getProducts(userId);
+      const adminId = await getTeamAdminId(req);
+      const existingProducts = await storage.getProducts(adminId);
       const existingSkus = new Set(existingProducts.map(p => p.sku.toLowerCase()));
 
       let imported = 0;
@@ -318,7 +351,7 @@ export async function registerRoutes(
             description,
             currentStock,
             photoUrl: null,
-            userId,
+            userId: adminId,
           });
           existingSkus.add(sku.toLowerCase());
           imported++;

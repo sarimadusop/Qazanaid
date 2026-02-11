@@ -36,7 +36,7 @@ export function useCreateProduct() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (data: Omit<Product, "id" | "updatedAt" | "userId">) => {
+    mutationFn: async (data: Partial<Omit<Product, "id" | "updatedAt" | "userId">>) => {
       const res = await fetch(api.products.create.path, {
         method: api.products.create.method,
         headers: { "Content-Type": "application/json" },

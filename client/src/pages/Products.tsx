@@ -1,8 +1,8 @@
 import { useState, useRef } from "react";
-import { useProducts, useCreateProduct, useDeleteProduct, useCategories, useUploadPhoto, useImportExcel, type ExcelImportResult } from "@/hooks/use-products";
+import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useCategories, useUploadPhoto, useImportExcel, type ExcelImportResult } from "@/hooks/use-products";
 import { useRole } from "@/hooks/use-role";
 import { api } from "@shared/routes";
-import { Plus, Search, Trash2, Box, Loader2, Upload, ImageIcon, Filter, Download, FileSpreadsheet, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
+import { Plus, Search, Trash2, Box, Loader2, Upload, ImageIcon, Filter, Download, FileSpreadsheet, CheckCircle2, AlertTriangle, XCircle, Pencil, Save, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,7 @@ export default function Products() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [importResult, setImportResult] = useState<ExcelImportResult | null>(null);
   const [isImportResultOpen, setIsImportResultOpen] = useState(false);
   const importExcel = useImportExcel();
@@ -158,24 +159,44 @@ export default function Products() {
               </thead>
               <tbody className="divide-y divide-border/50">
                 {filteredProducts?.map((product) => (
-                  <tr key={product.id} className="hover:bg-muted/20 transition-colors group" data-testid={`row-product-${product.id}`}>
-                    <td className="px-6 py-4">
-                      <ProductPhoto productId={product.id} photoUrl={product.photoUrl} canUpload={canManageSku} />
-                    </td>
-                    <td className="px-6 py-4 font-mono font-medium text-foreground">{product.sku}</td>
-                    <td className="px-6 py-4 font-medium text-foreground">{product.name}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{product.category || "-"}</td>
-                    <td className="px-6 py-4 text-right">
-                      <span className={product.currentStock < 10 ? "text-orange-600 font-bold" : "text-foreground"}>
-                        {product.currentStock}
-                      </span>
-                    </td>
-                    {canManageSku && (
-                      <td className="px-6 py-4 text-right">
-                        <DeleteProductButton id={product.id} name={product.name} />
+                  editingId === product.id ? (
+                    <EditProductRow
+                      key={product.id}
+                      product={product}
+                      onCancel={() => setEditingId(null)}
+                      onSaved={() => setEditingId(null)}
+                    />
+                  ) : (
+                    <tr key={product.id} className="hover:bg-muted/20 transition-colors group" data-testid={`row-product-${product.id}`}>
+                      <td className="px-6 py-4">
+                        <ProductPhoto productId={product.id} photoUrl={product.photoUrl} canUpload={canManageSku} />
                       </td>
-                    )}
-                  </tr>
+                      <td className="px-6 py-4 font-mono font-medium text-foreground">{product.sku}</td>
+                      <td className="px-6 py-4 font-medium text-foreground">{product.name}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{product.category || "-"}</td>
+                      <td className="px-6 py-4 text-right">
+                        <span className={product.currentStock < 10 ? "text-orange-600 font-bold" : "text-foreground"}>
+                          {product.currentStock}
+                        </span>
+                      </td>
+                      {canManageSku && (
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-muted-foreground"
+                              onClick={() => setEditingId(product.id)}
+                              data-testid={`button-edit-product-${product.id}`}
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <DeleteProductButton id={product.id} name={product.name} />
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  )
                 ))}
               </tbody>
             </table>
@@ -183,6 +204,67 @@ export default function Products() {
         )}
       </div>
     </div>
+  );
+}
+
+function EditProductRow({ product, onCancel, onSaved }: { product: any; onCancel: () => void; onSaved: () => void }) {
+  const [name, setName] = useState(product.name);
+  const [currentStock, setCurrentStock] = useState(product.currentStock);
+  const updateProduct = useUpdateProduct();
+
+  const handleSave = () => {
+    updateProduct.mutate(
+      { id: product.id, name, currentStock },
+      { onSuccess: onSaved }
+    );
+  };
+
+  return (
+    <tr className="bg-primary/5" data-testid={`row-edit-product-${product.id}`}>
+      <td className="px-6 py-4">
+        <ProductPhoto productId={product.id} photoUrl={product.photoUrl} canUpload={false} />
+      </td>
+      <td className="px-6 py-4 font-mono font-medium text-foreground">{product.sku}</td>
+      <td className="px-6 py-3">
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="bg-white"
+          data-testid={`input-edit-name-${product.id}`}
+        />
+      </td>
+      <td className="px-6 py-4 text-muted-foreground">{product.category || "-"}</td>
+      <td className="px-6 py-3 text-right">
+        <Input
+          type="number"
+          value={currentStock}
+          onChange={(e) => setCurrentStock(parseInt(e.target.value) || 0)}
+          className="bg-white w-24 ml-auto text-right"
+          data-testid={`input-edit-stock-${product.id}`}
+        />
+      </td>
+      <td className="px-6 py-4 text-right">
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleSave}
+            disabled={updateProduct.isPending}
+            data-testid={`button-save-edit-${product.id}`}
+          >
+            {updateProduct.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 text-green-600" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onCancel}
+            data-testid={`button-cancel-edit-${product.id}`}
+          >
+            <X className="w-4 h-4 text-muted-foreground" />
+          </Button>
+        </div>
+      </td>
+    </tr>
   );
 }
 
