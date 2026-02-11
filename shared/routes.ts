@@ -1,5 +1,6 @@
+
 import { z } from 'zod';
-import { insertProductSchema, insertSessionSchema, products, opnameSessions, opnameRecords, userRoles } from './schema';
+import { insertProductSchema, insertSessionSchema, insertRecordSchema, products, opnameSessions, opnameRecords } from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -26,7 +27,7 @@ export const api = {
     create: {
       method: 'POST' as const,
       path: '/api/products' as const,
-      input: insertProductSchema.omit({ userId: true }),
+      input: insertProductSchema,
       responses: {
         201: z.custom<typeof products.$inferSelect>(),
         400: errorSchemas.validation,
@@ -35,7 +36,7 @@ export const api = {
     update: {
       method: 'PUT' as const,
       path: '/api/products/:id' as const,
-      input: insertProductSchema.omit({ userId: true }).partial(),
+      input: insertProductSchema.partial(),
       responses: {
         200: z.custom<typeof products.$inferSelect>(),
         404: errorSchemas.notFound,
@@ -47,13 +48,6 @@ export const api = {
       responses: {
         204: z.void(),
         404: errorSchemas.notFound,
-      },
-    },
-    categories: {
-      method: 'GET' as const,
-      path: '/api/products/categories' as const,
-      responses: {
-        200: z.array(z.string()),
       },
     },
   },
@@ -68,7 +62,7 @@ export const api = {
     create: {
       method: 'POST' as const,
       path: '/api/sessions' as const,
-      input: insertSessionSchema.omit({ userId: true }),
+      input: insertSessionSchema,
       responses: {
         201: z.custom<typeof opnameSessions.$inferSelect>(),
         400: errorSchemas.validation,
@@ -93,7 +87,7 @@ export const api = {
   },
   records: {
     update: {
-      method: 'POST' as const,
+      method: 'POST' as const, // Using POST for upsert/update logic mainly
       path: '/api/sessions/:sessionId/records' as const,
       input: z.object({
         productId: z.number(),
@@ -105,51 +99,7 @@ export const api = {
         404: errorSchemas.notFound,
       },
     }
-  },
-  roles: {
-    me: {
-      method: 'GET' as const,
-      path: '/api/roles/me' as const,
-      responses: {
-        200: z.custom<typeof userRoles.$inferSelect>(),
-      },
-    },
-    list: {
-      method: 'GET' as const,
-      path: '/api/roles' as const,
-      responses: {
-        200: z.array(z.object({
-          userId: z.string(),
-          role: z.string(),
-          email: z.string().nullable().optional(),
-          firstName: z.string().nullable().optional(),
-          lastName: z.string().nullable().optional(),
-        })),
-      },
-    },
-    set: {
-      method: 'POST' as const,
-      path: '/api/roles' as const,
-      input: z.object({
-        userId: z.string(),
-        role: z.enum(["admin", "sku_manager", "stock_counter"]),
-      }),
-      responses: {
-        200: z.custom<typeof userRoles.$inferSelect>(),
-        403: errorSchemas.validation,
-      },
-    },
-  },
-  upload: {
-    photo: {
-      method: 'POST' as const,
-      path: '/api/upload/photo/:productId' as const,
-      responses: {
-        200: z.object({ url: z.string() }),
-        400: errorSchemas.validation,
-      },
-    },
-  },
+  }
 };
 
 export function buildUrl(path: string, params?: Record<string, string | number>): string {
