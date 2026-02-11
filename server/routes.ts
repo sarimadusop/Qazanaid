@@ -7,6 +7,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integra
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import * as XLSX from "xlsx";
 
 const upload = multer({ dest: "/tmp/uploads", limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -83,7 +84,7 @@ export async function registerRoutes(
   app.get(api.products.categories.path, isAuthenticated, async (req, res) => {
     const userId = getUserId(req);
     const prods = await storage.getProducts(userId);
-    const cats = [...new Set(prods.map(p => p.category).filter(Boolean))] as string[];
+    const cats = Array.from(new Set(prods.map(p => p.category).filter(Boolean))) as string[];
     res.json(cats);
   });
 
@@ -229,6 +230,108 @@ export async function registerRoutes(
 
     const record = await storage.updateRecord(sessionId, productId, actualStock, notes);
     res.json(record);
+  });
+
+  // === Excel Template & Import ===
+  app.get(api.excel.template.path, isAuthenticated, requireRole("admin", "sku_manager"), (req, res) => {
+    const wb = XLSX.utils.book_new();
+    const headers = ["SKU", "Nama Produk", "Kategori", "Deskripsi", "Stok Awal"];
+    const exampleRows = [
+      ["ITEM-001", "Contoh Produk", "Elektronik", "Deskripsi produk", 10],
+      ["ITEM-002", "Produk Kedua", "Makanan", "", 25],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...exampleRows]);
+    ws["!cols"] = [{ wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 30 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, ws, "Template Produk");
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Disposition", "attachment; filename=template_produk.xlsx");
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.send(buf);
+  });
+
+  app.post(api.excel.import.path, isAuthenticated, requireRole("admin", "sku_manager"), upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const fileBuffer = fs.readFileSync(req.file.path);
+      fs.unlinkSync(req.file.path);
+      const wb = XLSX.read(fileBuffer, { type: "buffer" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+      if (rows.length < 2) {
+        return res.status(400).json({ message: "File kosong atau tidak memiliki data" });
+      }
+
+      const userId = getUserId(req);
+      const existingProducts = await storage.getProducts(userId);
+      const existingSkus = new Set(existingProducts.map(p => p.sku.toLowerCase()));
+
+      let imported = 0;
+      let skipped = 0;
+      const errors: { row: number; message: string }[] = [];
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length === 0 || row.every(cell => cell === undefined || cell === null || cell === "")) {
+          continue;
+        }
+
+        const sku = String(row[0] || "").trim();
+        const name = String(row[1] || "").trim();
+        const category = String(row[2] || "").trim() || null;
+        const description = String(row[3] || "").trim() || null;
+        const currentStock = parseInt(String(row[4] || "0"), 10);
+
+        if (!sku) {
+          errors.push({ row: i + 1, message: "SKU wajib diisi" });
+          skipped++;
+          continue;
+        }
+
+        if (!name) {
+          errors.push({ row: i + 1, message: "Nama Produk wajib diisi" });
+          skipped++;
+          continue;
+        }
+
+        if (existingSkus.has(sku.toLowerCase())) {
+          errors.push({ row: i + 1, message: `SKU "${sku}" sudah ada` });
+          skipped++;
+          continue;
+        }
+
+        if (isNaN(currentStock) || currentStock < 0) {
+          errors.push({ row: i + 1, message: "Stok harus berupa angka positif" });
+          skipped++;
+          continue;
+        }
+
+        try {
+          await storage.createProduct({
+            sku,
+            name,
+            category,
+            description,
+            currentStock,
+            photoUrl: null,
+            userId,
+          });
+          existingSkus.add(sku.toLowerCase());
+          imported++;
+        } catch (err) {
+          errors.push({ row: i + 1, message: "Gagal menyimpan produk" });
+          skipped++;
+        }
+      }
+
+      res.json({ imported, skipped, errors });
+    } catch (err) {
+      console.error("Excel import error:", err);
+      res.status(500).json({ message: "Gagal memproses file Excel" });
+    }
   });
 
   return httpServer;

@@ -150,6 +150,27 @@ export const api = {
       },
     },
   },
+  excel: {
+    template: {
+      method: 'GET' as const,
+      path: '/api/excel/template' as const,
+    },
+    import: {
+      method: 'POST' as const,
+      path: '/api/excel/import' as const,
+      responses: {
+        200: z.object({
+          imported: z.number(),
+          skipped: z.number(),
+          errors: z.array(z.object({
+            row: z.number(),
+            message: z.string(),
+          })),
+        }),
+        400: errorSchemas.validation,
+      },
+    },
+  },
 };
 
 export function buildUrl(path: string, params?: Record<string, string | number>): string {
