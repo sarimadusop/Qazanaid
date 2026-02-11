@@ -1,23 +1,28 @@
-
-import { pgTable, text, serial, integer, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
 
-// === TABLE DEFINITIONS ===
+export * from "./models/auth";
 
-// Products / Items
+export const userRoles = pgTable("user_roles", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  role: text("role", { enum: ["admin", "sku_manager", "stock_counter"] }).default("stock_counter").notNull(),
+});
+
 export const products = pgTable("products", {
   id: serial("id").primaryKey(),
-  sku: text("sku").notNull().unique(),
+  sku: text("sku").notNull(),
   name: text("name").notNull(),
   category: text("category"),
   description: text("description"),
   currentStock: integer("current_stock").default(0).notNull(),
+  photoUrl: text("photo_url"),
+  userId: text("user_id").notNull(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Stock Opname Sessions (e.g., "End of Month Count - Oct")
 export const opnameSessions = pgTable("opname_sessions", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
@@ -25,18 +30,16 @@ export const opnameSessions = pgTable("opname_sessions", {
   startedAt: timestamp("started_at").defaultNow().notNull(),
   completedAt: timestamp("completed_at"),
   notes: text("notes"),
+  userId: text("user_id").notNull(),
 });
 
-// Individual Count Records within a session
 export const opnameRecords = pgTable("opname_records", {
   id: serial("id").primaryKey(),
   sessionId: integer("session_id").references(() => opnameSessions.id).notNull(),
   productId: integer("product_id").references(() => products.id).notNull(),
-  actualStock: integer("actual_stock"), // The counted value
+  actualStock: integer("actual_stock"),
   notes: text("notes"),
 });
-
-// === RELATIONS ===
 
 export const opnameRecordsRelations = relations(opnameRecords, ({ one }) => ({
   session: one(opnameSessions, {
@@ -53,13 +56,10 @@ export const opnameSessionsRelations = relations(opnameSessions, ({ many }) => (
   records: many(opnameRecords),
 }));
 
-// === SCHEMAS ===
-
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, updatedAt: true });
 export const insertSessionSchema = createInsertSchema(opnameSessions).omit({ id: true, startedAt: true, completedAt: true });
 export const insertRecordSchema = createInsertSchema(opnameRecords).omit({ id: true });
-
-// === TYPES ===
+export const insertUserRoleSchema = createInsertSchema(userRoles).omit({ id: true });
 
 export type Product = typeof products.$inferSelect;
 export type InsertProduct = z.infer<typeof insertProductSchema>;
@@ -70,7 +70,8 @@ export type InsertOpnameSession = z.infer<typeof insertSessionSchema>;
 export type OpnameRecord = typeof opnameRecords.$inferSelect;
 export type InsertOpnameRecord = z.infer<typeof insertRecordSchema>;
 
-// Detailed record for frontend display
+export type UserRole = typeof userRoles.$inferSelect;
+export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
+
 export type OpnameRecordWithProduct = OpnameRecord & { product: Product };
 export type OpnameSessionWithRecords = OpnameSession & { records: OpnameRecordWithProduct[] };
-

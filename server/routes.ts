@@ -1,25 +1,106 @@
-
-import type { Express } from "express";
-import { createServer, type Server } from "http";
+import type { Express, Request, Response } from "express";
+import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
+import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+
+const upload = multer({ dest: "/tmp/uploads", limits: { fileSize: 10 * 1024 * 1024 } });
+
+function getUserId(req: Request): string {
+  return (req.user as any)?.claims?.sub;
+}
+
+async function getUserRole(req: Request) {
+  const userId = getUserId(req);
+  const roleRecord = await storage.getUserRole(userId);
+  return roleRecord?.role || "stock_counter";
+}
+
+function requireRole(...roles: string[]) {
+  return async (req: Request, res: Response, next: Function) => {
+    const role = await getUserRole(req);
+    if (roles.includes(role)) {
+      return next();
+    }
+    res.status(403).json({ message: "Anda tidak memiliki akses untuk fitur ini" });
+  };
+}
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
 
-  // === Products ===
-  app.get(api.products.list.path, async (req, res) => {
-    const products = await storage.getProducts();
-    res.json(products);
+  await setupAuth(app);
+  registerAuthRoutes(app);
+
+  // === Roles ===
+  app.get(api.roles.me.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    let roleRecord = await storage.getUserRole(userId);
+    if (!roleRecord) {
+      roleRecord = await storage.setUserRole({ userId, role: "stock_counter" });
+    }
+    res.json(roleRecord);
   });
 
-  app.post(api.products.create.path, async (req, res) => {
+  app.get(api.roles.list.path, isAuthenticated, requireRole("admin"), async (req, res) => {
+    const roles = await storage.getAllUserRoles();
+    const { users } = await import("@shared/schema");
+    const { db } = await import("./db");
+    const allUsers = await db.select().from(users);
+    
+    const enriched = roles.map(r => {
+      const user = allUsers.find(u => u.id === r.userId);
+      return {
+        ...r,
+        email: user?.email,
+        firstName: user?.firstName,
+        lastName: user?.lastName,
+      };
+    });
+    res.json(enriched);
+  });
+
+  app.post(api.roles.set.path, isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const input = api.roles.set.input.parse(req.body);
+      const role = await storage.setUserRole(input);
+      res.json(role);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      throw err;
+    }
+  });
+
+  // === Products ===
+  app.get(api.products.categories.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    const role = await getUserRole(req);
+    const prods = role === "admin"
+      ? await storage.getProducts(userId)
+      : await storage.getProducts(userId);
+    const cats = [...new Set(prods.map(p => p.category).filter(Boolean))] as string[];
+    res.json(cats);
+  });
+
+  app.get(api.products.list.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    const prods = await storage.getProducts(userId);
+    res.json(prods);
+  });
+
+  app.post(api.products.create.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
     try {
       const input = api.products.create.input.parse(req.body);
-      const product = await storage.createProduct(input);
+      const userId = getUserId(req);
+      const product = await storage.createProduct({ ...input, userId });
       res.status(201).json(product);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -32,33 +113,70 @@ export async function registerRoutes(
     }
   });
 
-  app.put(api.products.update.path, async (req, res) => {
+  app.put(api.products.update.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
     try {
-        const id = Number(req.params.id);
-        const input = api.products.update.input.parse(req.body);
-        const product = await storage.updateProduct(id, input);
-        res.json(product);
+      const id = Number(req.params.id);
+      const input = api.products.update.input.parse(req.body);
+      const product = await storage.updateProduct(id, input);
+      res.json(product);
     } catch (err) {
-        // Handle 404 in storage or here
-        res.status(500).json({ message: "Failed to update product" });
+      res.status(500).json({ message: "Failed to update product" });
     }
   });
 
-  app.delete(api.products.delete.path, async (req, res) => {
+  app.delete(api.products.delete.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
     await storage.deleteProduct(Number(req.params.id));
     res.sendStatus(204);
   });
 
+  // === Photo Upload (local storage for now, Google Drive setup pending) ===
+  app.post(api.upload.photo.path, isAuthenticated, requireRole("admin", "sku_manager"), upload.single("photo"), async (req, res) => {
+    try {
+      const productId = Number(req.params.productId);
+      const product = await storage.getProduct(productId);
+      if (!product) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const date = new Date().toISOString().split("T")[0];
+      const safeName = product.name.replace(/[^a-zA-Z0-9]/g, "_");
+      const ext = path.extname(req.file.originalname) || ".jpg";
+      const filename = `${safeName}_${date}${ext}`;
+
+      const publicDir = path.join(process.cwd(), "client", "public", "uploads");
+      if (!fs.existsSync(publicDir)) {
+        fs.mkdirSync(publicDir, { recursive: true });
+      }
+
+      const destPath = path.join(publicDir, filename);
+      fs.renameSync(req.file.path, destPath);
+
+      const url = `/uploads/${filename}`;
+      await storage.updateProduct(productId, { photoUrl: url });
+
+      res.json({ url });
+    } catch (err) {
+      console.error("Upload error:", err);
+      res.status(500).json({ message: "Upload failed" });
+    }
+  });
+
   // === Sessions ===
-  app.get(api.sessions.list.path, async (req, res) => {
-    const sessions = await storage.getSessions();
+  app.get(api.sessions.list.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    const sessions = await storage.getSessions(userId);
     res.json(sessions);
   });
 
-  app.post(api.sessions.create.path, async (req, res) => {
+  app.post(api.sessions.create.path, isAuthenticated, requireRole("admin", "stock_counter"), async (req, res) => {
     try {
       const input = api.sessions.create.input.parse(req.body);
-      const session = await storage.createSession(input);
+      const userId = getUserId(req);
+      const session = await storage.createSession({ ...input, userId });
       res.status(201).json(session);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -68,7 +186,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get(api.sessions.get.path, async (req, res) => {
+  app.get(api.sessions.get.path, isAuthenticated, async (req, res) => {
     const session = await storage.getSession(Number(req.params.id));
     if (!session) {
       return res.status(404).json({ message: 'Session not found' });
@@ -76,19 +194,18 @@ export async function registerRoutes(
     res.json(session);
   });
 
-  app.post(api.sessions.complete.path, async (req, res) => {
+  app.post(api.sessions.complete.path, isAuthenticated, requireRole("admin", "stock_counter"), async (req, res) => {
     const session = await storage.completeSession(Number(req.params.id));
     res.json(session);
   });
 
   // === Records ===
-  app.post(api.records.update.path, async (req, res) => {
+  app.post(api.records.update.path, isAuthenticated, requireRole("admin", "stock_counter"), async (req, res) => {
     const sessionId = Number(req.params.sessionId);
     const { productId, actualStock, notes } = req.body;
     
-    // Simple validation
     if (typeof productId !== 'number' || typeof actualStock !== 'number') {
-        return res.status(400).json({ message: "Invalid input" });
+      return res.status(400).json({ message: "Invalid input" });
     }
 
     const record = await storage.updateRecord(sessionId, productId, actualStock, notes);
@@ -97,20 +214,3 @@ export async function registerRoutes(
 
   return httpServer;
 }
-
-// Seed function to create initial data if empty
-async function seedDatabase() {
-    const products = await storage.getProducts();
-    if (products.length === 0) {
-        console.log("Seeding database...");
-        await storage.createProduct({ sku: "SKU-001", name: "Laptop Gaming", category: "Electronics", currentStock: 10, description: "High performance laptop" });
-        await storage.createProduct({ sku: "SKU-002", name: "Wireless Mouse", category: "Accessories", currentStock: 50, description: "Ergonomic mouse" });
-        await storage.createProduct({ sku: "SKU-003", name: "Mechanical Keyboard", category: "Accessories", currentStock: 25, description: "RGB keyboard" });
-        await storage.createProduct({ sku: "SKU-004", name: "Monitor 24 inch", category: "Electronics", currentStock: 15, description: "1080p display" });
-        await storage.createProduct({ sku: "GEN-X1", name: "Generic Item A", category: "General", currentStock: 100, description: "Standard stock item" });
-        console.log("Seeding complete.");
-    }
-}
-
-// Run seed
-seedDatabase().catch(console.error);
