@@ -13,10 +13,11 @@ import SessionDetail from "@/pages/SessionDetail";
 import RoleManagement from "@/pages/RoleManagement";
 import Profile from "@/pages/Profile";
 import NotFound from "@/pages/not-found";
-import { Loader2, Package, AlertCircle } from "lucide-react";
+import { Loader2, Package, AlertCircle, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 function LoginPage() {
   const { login, register, loginError, registerError, isLoggingIn, isRegistering } = useAuth();
@@ -25,6 +26,7 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [showForgotInfo, setShowForgotInfo] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,6 +116,19 @@ function LoginPage() {
               {mode === "login" ? "Masuk" : "Daftar"}
             </Button>
 
+            {mode === "login" && (
+              <div className="text-center">
+                <button
+                  type="button"
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setShowForgotInfo(true)}
+                  data-testid="button-forgot-password"
+                >
+                  Lupa Password?
+                </button>
+              </div>
+            )}
+
             <div className="text-center text-sm text-muted-foreground">
               {mode === "login" ? (
                 <span>
@@ -144,6 +159,31 @@ function LoginPage() {
           </form>
         </CardContent>
       </Card>
+
+      <Dialog open={showForgotInfo} onOpenChange={setShowForgotInfo}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Lupa Password?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="flex gap-3 p-4 rounded-lg bg-muted/50 border border-border/50">
+              <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>Hubungi <strong className="text-foreground">Admin</strong> tim Anda untuk mereset password.</p>
+                <p>Admin dapat mereset password Anda melalui halaman <strong className="text-foreground">User Roles</strong>.</p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              Jika Anda adalah admin dan lupa password, silakan hubungi administrator sistem.
+            </p>
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={() => setShowForgotInfo(false)} data-testid="button-close-forgot">
+                Tutup
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

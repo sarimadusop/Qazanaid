@@ -202,6 +202,45 @@ export function registerAuthRoutes(app: Express): void {
     }
   });
 
+  app.post("/api/auth/reset-password", isAuthenticated, async (req, res) => {
+    try {
+      const adminId = (req.session as any).userId;
+      const adminRole = await db.select().from(userRoles).where(
+        eq(userRoles.userId, adminId)
+      );
+      if (!adminRole[0] || adminRole[0].role !== "admin") {
+        return res.status(403).json({ message: "Hanya admin yang bisa reset password" });
+      }
+
+      const { userId, newPassword } = req.body;
+
+      if (!userId || !newPassword) {
+        return res.status(400).json({ message: "User ID dan password baru wajib diisi" });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({ message: "Password baru minimal 6 karakter" });
+      }
+
+      const targetUser = await authStorage.getUser(userId);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User tidak ditemukan" });
+      }
+
+      if (targetUser.adminId !== adminId) {
+        return res.status(403).json({ message: "Anda hanya bisa reset password anggota tim Anda" });
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await authStorage.updateUser(userId, { password: hashedPassword, updatedAt: new Date() });
+
+      res.json({ message: "Password berhasil direset" });
+    } catch (error) {
+      console.error("Reset password error:", error);
+      res.status(500).json({ message: "Gagal mereset password" });
+    }
+  });
+
   app.post("/api/auth/logout", (req, res) => {
     req.session.destroy((err) => {
       if (err) {

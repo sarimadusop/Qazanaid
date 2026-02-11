@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
 import { useRole } from "@/hooks/use-role";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Loader2, Plus, AlertCircle } from "lucide-react";
+import { Shield, Loader2, Plus, AlertCircle, KeyRound } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -113,6 +113,7 @@ export default function RoleManagement() {
                 <th className="px-6 py-4 font-medium text-muted-foreground">Tipe</th>
                 <th className="px-6 py-4 font-medium text-muted-foreground">Role Saat Ini</th>
                 <th className="px-6 py-4 font-medium text-muted-foreground">Ubah Role</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
@@ -143,6 +144,7 @@ export default function RoleManagement() {
                       {roleLabels[adminUser.role] || adminUser.role}
                     </Badge>
                   </td>
+                  <td className="px-6 py-4 text-muted-foreground text-sm">-</td>
                   <td className="px-6 py-4 text-muted-foreground text-sm">-</td>
                 </tr>
               )}
@@ -187,11 +189,14 @@ export default function RoleManagement() {
                       </SelectContent>
                     </Select>
                   </td>
+                  <td className="px-6 py-4">
+                    <ResetPasswordButton userId={user.userId} userName={user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.username || "User"} />
+                  </td>
                 </tr>
               ))}
               {subUsers.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">
+                  <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">
                     Belum ada anggota tim. Klik "Tambah User" untuk membuat user baru.
                   </td>
                 </tr>
@@ -218,6 +223,86 @@ function getInitials(user: UserWithRole): string {
     return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
   }
   return (user.username || "U").substring(0, 2).toUpperCase();
+}
+
+function ResetPasswordButton({ userId, userName }: { userId: string; userName: string }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [error, setError] = useState("");
+
+  const resetPassword = useMutation({
+    mutationFn: async (data: { userId: string; newPassword: string }) => {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Gagal reset password");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Password Direset", description: `Password ${userName} berhasil diubah.` });
+      setOpen(false);
+      setNewPassword("");
+      setError("");
+    },
+    onError: (err) => {
+      setError(err.message);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    resetPassword.mutate({ userId, newPassword });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setNewPassword(""); setError(""); } }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" data-testid={`button-reset-password-${userId}`}>
+          <KeyRound className="w-4 h-4 mr-1.5" />
+          Reset Password
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle>Reset Password - {userName}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+          {error && (
+            <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm" data-testid="text-reset-error">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {error}
+            </div>
+          )}
+          <div>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Password Baru</label>
+            <Input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Minimal 6 karakter"
+              required
+              data-testid="input-reset-password"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Batal</Button>
+            <Button type="submit" disabled={resetPassword.isPending} data-testid="button-submit-reset">
+              {resetPassword.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Reset Password
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
