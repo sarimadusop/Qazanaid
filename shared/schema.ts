@@ -32,9 +32,7 @@ export const opnameRecords = pgTable("opname_records", {
   id: serial("id").primaryKey(),
   sessionId: integer("session_id").references(() => opnameSessions.id).notNull(),
   productId: integer("product_id").references(() => products.id).notNull(),
-  systemStockSnapshot: integer("system_stock_snapshot").notNull(), // Stock at the moment opname started/record created
   actualStock: integer("actual_stock"), // The counted value
-  difference: integer("difference"), // actual - system
   notes: text("notes"),
 });
 
@@ -59,7 +57,7 @@ export const opnameSessionsRelations = relations(opnameSessions, ({ many }) => (
 
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, updatedAt: true });
 export const insertSessionSchema = createInsertSchema(opnameSessions).omit({ id: true, startedAt: true, completedAt: true });
-export const insertRecordSchema = createInsertSchema(opnameRecords).omit({ id: true, difference: true });
+export const insertRecordSchema = createInsertSchema(opnameRecords).omit({ id: true });
 
 // === TYPES ===
 
