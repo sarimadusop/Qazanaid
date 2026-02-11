@@ -46,9 +46,7 @@ export default function SessionDetail() {
       SKU: r.product.sku,
       "Product Name": r.product.name,
       Category: r.product.category,
-      "System Stock": r.systemStockSnapshot,
       "Actual Stock": r.actualStock ?? 0,
-      "Difference": (r.actualStock ?? 0) - r.systemStockSnapshot,
       "Notes": r.notes
     }));
 
@@ -143,11 +141,9 @@ export default function SessionDetail() {
           <table className="w-full text-left text-sm">
             <thead className="bg-muted/30 border-b border-border/50">
               <tr>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[15%]">SKU</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[25%]">Product</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground text-right w-[15%]">System Stock</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[20%] text-center">Actual Count</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground text-right w-[15%]">Difference</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[20%]">SKU</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[40%]">Product</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[30%] text-center">Actual Count</th>
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[10%]">Status</th>
               </tr>
             </thead>
@@ -174,12 +170,6 @@ function RecordRow({ record, sessionId, readOnly }: { record: any; sessionId: nu
   const [actual, setActual] = useState(record.actualStock?.toString() ?? "");
   const [isFocused, setIsFocused] = useState(false);
 
-  // If actualStock is null, difference is irrelevant (or consider 0).
-  // If actualStock is set, calculate difference from system snapshot.
-  const diff = record.actualStock !== null 
-    ? (record.actualStock - record.systemStockSnapshot) 
-    : null;
-
   const handleBlur = () => {
     setIsFocused(false);
     const val = parseInt(actual);
@@ -198,7 +188,6 @@ function RecordRow({ record, sessionId, readOnly }: { record: any; sessionId: nu
     <tr className={cn("transition-colors", isFocused ? "bg-blue-50/50" : "hover:bg-muted/10")}>
       <td className="px-6 py-4 font-mono text-muted-foreground">{record.product.sku}</td>
       <td className="px-6 py-4 font-medium text-foreground">{record.product.name}</td>
-      <td className="px-6 py-4 text-right text-muted-foreground">{record.systemStockSnapshot}</td>
       
       {/* Input Cell */}
       <td className="px-6 py-3">
@@ -225,28 +214,10 @@ function RecordRow({ record, sessionId, readOnly }: { record: any; sessionId: nu
         )}
       </td>
 
-      {/* Difference Cell */}
-      <td className="px-6 py-4 text-right">
-        {diff !== null && (
-          <span className={cn(
-            "font-bold px-2 py-1 rounded-md text-xs",
-            diff === 0 ? "text-muted-foreground bg-muted/50" :
-            diff > 0 ? "text-emerald-600 bg-emerald-50" :
-            "text-red-600 bg-red-50"
-          )}>
-            {diff > 0 ? `+${diff}` : diff}
-          </span>
-        )}
-      </td>
-
       {/* Status Icon */}
       <td className="px-6 py-4">
-        {diff !== null ? (
-          diff === 0 ? (
-            <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto" />
-          ) : (
-            <AlertCircle className="w-5 h-5 text-amber-500 mx-auto" />
-          )
+        {record.actualStock !== null ? (
+          <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto" />
         ) : (
           <div className="w-2 h-2 rounded-full bg-muted-foreground/20 mx-auto" />
         )}

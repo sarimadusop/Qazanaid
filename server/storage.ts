@@ -94,13 +94,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(opnameSessions.id, id))
         .returning();
 
-    // Optional: Update product stock based on actual counts?
-    // For now, let's keep it as an audit record without auto-updating master stock
-    // to avoid accidental overwrites. Usually opname results are reviewed before posting.
-    // If the user wants auto-update, we can add it later.
-    // Ideally, we SHOULD update the master stock if the count is finalized.
-    // Let's implement that for a better user experience.
-
+    // Update master stock with the actual counts from opname
     const records = await db.select().from(opnameRecords).where(eq(opnameRecords.sessionId, id));
     for (const record of records) {
         if (record.actualStock !== null) {
