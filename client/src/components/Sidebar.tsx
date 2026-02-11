@@ -21,8 +21,14 @@ export function Sidebar() {
     ...(isAdmin ? [{ name: "User Roles", href: "/roles", icon: Shield }] : []),
   ];
 
+  const displayName = user?.firstName && user?.lastName
+    ? `${user.firstName} ${user.lastName}`
+    : user?.username || "User";
+
   const initials = user
-    ? `${(user.firstName || "")[0] || ""}${(user.lastName || "")[0] || ""}`.toUpperCase() || "U"
+    ? (user.firstName && user.lastName
+      ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
+      : (user.username || "U").substring(0, 2).toUpperCase())
     : "U";
 
   const roleLabel: Record<string, string> = {
@@ -95,7 +101,7 @@ export function Sidebar() {
               </Avatar>
               <div className="overflow-hidden flex-1">
                 <p className="text-sm font-semibold truncate" data-testid="text-username">
-                  {user?.firstName} {user?.lastName}
+                  {displayName}
                 </p>
                 <Badge variant="secondary" className="text-xs mt-0.5" data-testid="text-role">
                   {roleLabel[role] || role}

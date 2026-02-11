@@ -12,6 +12,7 @@ type UserWithRole = {
   id: number;
   userId: string;
   role: string;
+  username?: string | null;
   email?: string | null;
   firstName?: string | null;
   lastName?: string | null;
@@ -111,9 +112,14 @@ export default function RoleManagement() {
                             {initials}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="font-medium text-foreground">
-                          {user.firstName} {user.lastName}
-                        </span>
+                        <div>
+                          <span className="font-medium text-foreground block">
+                            {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.username || "-"}
+                          </span>
+                          {user.username && (
+                            <span className="text-xs text-muted-foreground">@{user.username}</span>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-muted-foreground">{user.email || "-"}</td>
