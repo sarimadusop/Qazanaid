@@ -10,6 +10,7 @@ A full-stack inventory management application for stock opname (stock counting/a
 - **2026-02-11**: Inline edit product name and stock in Products table
 - **2026-02-11**: Excel template download & bulk import for products (with validation: duplicate SKU, missing fields, error reporting)
 - **2026-02-11**: Foto upload per opname record (NamaProdukSO_tanggalupload.ext), preview foto, download ZIP semua foto per sesi
+- **2026-02-11**: Lupa Password feature: Admin can reset sub-user passwords from Role Management. Login page shows "Lupa Password?" info dialog.
 
 ## Architecture
 
