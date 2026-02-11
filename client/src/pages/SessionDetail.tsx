@@ -1,11 +1,8 @@
 import { useSession, useUpdateRecord, useCompleteSession } from "@/hooks/use-sessions";
-import { useCategories } from "@/hooks/use-products";
-import { useRole } from "@/hooks/use-role";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, CheckCircle2, Download, Search, Loader2, Filter } from "lucide-react";
+import { ArrowLeft, Save, CheckCircle2, Download, Search, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
@@ -28,24 +25,19 @@ export default function SessionDetail() {
   const sessionId = parseInt(id!);
   const [, setLocation] = useLocation();
   const { data: session, isLoading } = useSession(sessionId);
-  const { data: categories } = useCategories();
-  const { canCount } = useRole();
   const completeSession = useCompleteSession();
   const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const { toast } = useToast();
 
   const isCompleted = session?.status === "completed";
 
   const records = useMemo(() => {
     if (!session?.records) return [];
-    return session.records.filter(r => {
-      const matchesSearch = r.product.name.toLowerCase().includes(search.toLowerCase()) ||
-        r.product.sku.toLowerCase().includes(search.toLowerCase());
-      const matchesCategory = categoryFilter === "all" || r.product.category === categoryFilter;
-      return matchesSearch && matchesCategory;
-    });
-  }, [session?.records, search, categoryFilter]);
+    return session.records.filter(r => 
+      r.product.name.toLowerCase().includes(search.toLowerCase()) || 
+      r.product.sku.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [session?.records, search]);
 
   const exportToExcel = () => {
     if (!session?.records) return;
@@ -62,7 +54,7 @@ export default function SessionDetail() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Opname Data");
     XLSX.writeFile(wb, `${session.title.replace(/\s+/g, '_')}_Report.xlsx`);
-
+    
     toast({
       title: "Export Successful",
       description: "The Excel file has been downloaded.",
@@ -70,40 +62,45 @@ export default function SessionDetail() {
   };
 
   const handleComplete = () => {
-    completeSession.mutate(sessionId);
+    completeSession.mutate(sessionId, {
+      onSuccess: () => {
+        // Stay on page but state will update
+      }
+    });
   };
 
-  if (isLoading) return <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+  if (isLoading) return <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary"/></div>;
   if (!session) return <div className="p-12 text-center">Session not found</div>;
 
   return (
     <div className="space-y-6 animate-enter pb-12">
+      {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" onClick={() => setLocation("/sessions")} data-testid="button-back">
+          <Button variant="outline" size="icon" onClick={() => setLocation("/sessions")}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-display font-bold text-foreground" data-testid="text-session-title">{session.title}</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-display font-bold text-foreground">{session.title}</h1>
               <StatusBadge status={session.status} />
             </div>
             <p className="text-sm text-muted-foreground mt-1">
-              Started on {new Date(session.startedAt).toLocaleDateString()} | {records.length} items
+              Started on {new Date(session.startedAt).toLocaleDateString()} • {records.length} items
             </p>
           </div>
         </div>
-
-        <div className="flex items-center gap-3 flex-wrap">
-          <Button variant="outline" onClick={exportToExcel} data-testid="button-export">
+        
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={exportToExcel}>
             <Download className="w-4 h-4 mr-2" />
             Export Excel
           </Button>
-
-          {!isCompleted && canCount && (
+          
+          {!isCompleted && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button className="bg-emerald-600 text-white" data-testid="button-finalize">
+                <Button className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-200">
                   <CheckCircle2 className="w-4 h-4 mr-2" />
                   Finalize Session
                 </Button>
@@ -117,7 +114,7 @@ export default function SessionDetail() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleComplete} className="bg-emerald-600" data-testid="button-confirm-finalize">
+                  <AlertDialogAction onClick={handleComplete} className="bg-emerald-600 hover:bg-emerald-700">
                     Confirm & Complete
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -127,50 +124,36 @@ export default function SessionDetail() {
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
-        <div className="relative max-w-md flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by SKU or Name..."
-            className="pl-9 bg-white"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            data-testid="input-search-records"
-          />
-        </div>
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-40 bg-white" data-testid="select-session-category-filter">
-            <Filter className="w-4 h-4 mr-2 text-muted-foreground" />
-            <SelectValue placeholder="All Categories" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {categories?.map(cat => (
-              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* Search Bar */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input 
+          placeholder="Search by SKU or Name..." 
+          className="pl-9 bg-white"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
 
-      <div className="bg-card border border-border/50 rounded-2xl shadow-sm overflow-hidden">
+      {/* Table Card */}
+      <div className="bg-white border border-border/50 rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-muted/30 border-b border-border/50">
               <tr>
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[20%]">SKU</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[30%]">Product</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[15%]">Category</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[25%] text-center">Actual Count</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[40%]">Product</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[30%] text-center">Actual Count</th>
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[10%]">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
               {records.map((record) => (
-                <RecordRow
-                  key={record.id}
-                  record={record}
+                <RecordRow 
+                  key={record.id} 
+                  record={record} 
                   sessionId={sessionId}
-                  readOnly={isCompleted || !canCount}
+                  readOnly={isCompleted}
                 />
               ))}
             </tbody>
@@ -181,6 +164,7 @@ export default function SessionDetail() {
   );
 }
 
+// Separate component for row to manage local state and prevent full table re-renders on input
 function RecordRow({ record, sessionId, readOnly }: { record: any; sessionId: number; readOnly: boolean }) {
   const updateRecord = useUpdateRecord();
   const [actual, setActual] = useState(record.actualStock?.toString() ?? "");
@@ -189,7 +173,8 @@ function RecordRow({ record, sessionId, readOnly }: { record: any; sessionId: nu
   const handleBlur = () => {
     setIsFocused(false);
     const val = parseInt(actual);
-
+    
+    // Only update if value changed and is a valid number
     if (!isNaN(val) && val !== record.actualStock) {
       updateRecord.mutate({
         sessionId,
@@ -200,10 +185,11 @@ function RecordRow({ record, sessionId, readOnly }: { record: any; sessionId: nu
   };
 
   return (
-    <tr className={cn("transition-colors", isFocused ? "bg-blue-50/50" : "hover:bg-muted/10")} data-testid={`row-record-${record.id}`}>
+    <tr className={cn("transition-colors", isFocused ? "bg-blue-50/50" : "hover:bg-muted/10")}>
       <td className="px-6 py-4 font-mono text-muted-foreground">{record.product.sku}</td>
       <td className="px-6 py-4 font-medium text-foreground">{record.product.name}</td>
-      <td className="px-6 py-4 text-muted-foreground">{record.product.category || "-"}</td>
+      
+      {/* Input Cell */}
       <td className="px-6 py-3">
         {readOnly ? (
           <div className="text-center font-bold text-foreground py-2 px-3 bg-muted/20 rounded-lg">
@@ -223,11 +209,12 @@ function RecordRow({ record, sessionId, readOnly }: { record: any; sessionId: nu
               onFocus={() => setIsFocused(true)}
               onBlur={handleBlur}
               disabled={updateRecord.isPending}
-              data-testid={`input-count-${record.productId}`}
             />
           </div>
         )}
       </td>
+
+      {/* Status Icon */}
       <td className="px-6 py-4">
         {record.actualStock !== null ? (
           <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto" />
