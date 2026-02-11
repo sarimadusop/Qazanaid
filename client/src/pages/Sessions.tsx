@@ -1,4 +1,5 @@
 import { useSessions, useCreateSession } from "@/hooks/use-sessions";
+import { useRole } from "@/hooks/use-role";
 import { Link } from "wouter";
 import { Plus, ClipboardList, Calendar, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,11 +12,16 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertSessionSchema } from "@shared/schema";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+
+const sessionFormSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  notes: z.string().optional(),
+});
 
 export default function Sessions() {
   const { data: sessions, isLoading } = useSessions();
+  const { canCount } = useRole();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   return (
@@ -25,7 +31,7 @@ export default function Sessions() {
           <h1 className="text-3xl font-display font-bold text-foreground">Opname Sessions</h1>
           <p className="text-muted-foreground mt-2">Track and audit your stock counting sessions.</p>
         </div>
-        <CreateSessionDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} />
+        {canCount && <CreateSessionDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} />}
       </div>
 
       {isLoading ? (
@@ -33,7 +39,7 @@ export default function Sessions() {
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : sessions?.length === 0 ? (
-        <div className="bg-white border border-border/50 rounded-2xl p-16 text-center shadow-sm">
+        <div className="bg-card border border-border/50 rounded-2xl p-16 text-center shadow-sm">
           <ClipboardList className="w-16 h-16 mx-auto text-muted-foreground/30 mb-4" />
           <h3 className="text-lg font-semibold text-foreground">No Sessions Yet</h3>
           <p className="text-muted-foreground mt-1 mb-6">Start a new stock opname session to begin auditing.</p>
@@ -43,7 +49,7 @@ export default function Sessions() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sessions?.map((session) => (
             <Link key={session.id} href={`/sessions/${session.id}`}>
-              <div className="bg-white p-6 rounded-2xl border border-border/50 shadow-sm hover:shadow-lg hover:border-primary/20 transition-all cursor-pointer group flex flex-col h-full">
+              <div className="bg-card p-6 rounded-2xl border border-border/50 shadow-sm hover:shadow-lg hover:border-primary/20 transition-all cursor-pointer group flex flex-col h-full">
                 <div className="flex items-start justify-between mb-4">
                   <div className="p-3 bg-primary/5 rounded-xl group-hover:bg-primary/10 transition-colors">
                     <ClipboardList className="w-6 h-6 text-primary" />
@@ -72,16 +78,15 @@ export default function Sessions() {
 function CreateSessionDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const createSession = useCreateSession();
   
-  const form = useForm<z.infer<typeof insertSessionSchema>>({
-    resolver: zodResolver(insertSessionSchema),
+  const form = useForm<z.infer<typeof sessionFormSchema>>({
+    resolver: zodResolver(sessionFormSchema),
     defaultValues: {
       title: "",
       notes: "",
-      status: "in_progress",
     },
   });
 
-  const onSubmit = (data: z.infer<typeof insertSessionSchema>) => {
+  const onSubmit = (data: z.infer<typeof sessionFormSchema>) => {
     createSession.mutate(data, {
       onSuccess: () => {
         onOpenChange(false);
