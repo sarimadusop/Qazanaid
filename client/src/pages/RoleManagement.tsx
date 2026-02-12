@@ -27,12 +27,16 @@ const roleLabels: Record<string, string> = {
   admin: "Admin",
   sku_manager: "SKU Manager",
   stock_counter: "Stock Counter",
+  stock_counter_toko: "Stock Counter Toko",
+  stock_counter_gudang: "Stock Counter Gudang",
 };
 
 const roleBadgeColors: Record<string, string> = {
   admin: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
   sku_manager: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
   stock_counter: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+  stock_counter_toko: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  stock_counter_gudang: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
 };
 
 export default function RoleManagement() {
@@ -183,9 +187,11 @@ export default function RoleManagement() {
                       <SelectTrigger className="w-40" data-testid={`select-role-${user.userId}`}>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-card border border-border">
                         <SelectItem value="sku_manager">SKU Manager</SelectItem>
                         <SelectItem value="stock_counter">Stock Counter</SelectItem>
+                        <SelectItem value="stock_counter_toko">Stock Counter Toko</SelectItem>
+                        <SelectItem value="stock_counter_gudang">Stock Counter Gudang</SelectItem>
                       </SelectContent>
                     </Select>
                   </td>
@@ -211,7 +217,9 @@ export default function RoleManagement() {
         <div className="space-y-2 text-sm text-muted-foreground">
           <p><strong className="text-foreground">Admin (Owner)</strong> - Akses penuh: kelola produk, sesi, dan user tim</p>
           <p><strong className="text-foreground">SKU Manager</strong> - Bisa membuat, edit, dan hapus produk/SKU. Tidak bisa kelola sesi atau role</p>
-          <p><strong className="text-foreground">Stock Counter</strong> - Bisa membuat dan mengisi sesi stock opname. Tidak bisa kelola produk atau role</p>
+          <p><strong className="text-foreground">Stock Counter</strong> - Bisa membuat dan mengisi sesi stock opname untuk Toko dan Gudang</p>
+          <p><strong className="text-foreground">Stock Counter Toko</strong> - Hanya bisa stock opname untuk lokasi Toko</p>
+          <p><strong className="text-foreground">Stock Counter Gudang</strong> - Hanya bisa stock opname untuk lokasi Gudang</p>
         </div>
       </div>
     </div>
@@ -421,9 +429,11 @@ function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
               <SelectTrigger data-testid="select-new-role">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-card border border-border">
                 <SelectItem value="sku_manager">SKU Manager</SelectItem>
                 <SelectItem value="stock_counter">Stock Counter</SelectItem>
+                <SelectItem value="stock_counter_toko">Stock Counter Toko</SelectItem>
+                <SelectItem value="stock_counter_gudang">Stock Counter Gudang</SelectItem>
               </SelectContent>
             </Select>
           </div>

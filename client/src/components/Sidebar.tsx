@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Package, ClipboardList, LayoutDashboard, Menu, X, Box, Shield, LogOut, UserCog } from "lucide-react";
+import { Package, ClipboardList, LayoutDashboard, Menu, X, Box, Shield, LogOut, UserCog, Users, Megaphone, MessageSquare, Heart } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -12,13 +12,17 @@ export function Sidebar() {
   const [location] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const { user, logout } = useAuth();
-  const { role, isAdmin } = useRole();
+  const { role, isAdmin, isSKUManager } = useRole();
 
   const navigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Products / SKU", href: "/products", icon: Box },
     { name: "Opname Sessions", href: "/sessions", icon: ClipboardList },
     ...(isAdmin ? [{ name: "User Roles", href: "/roles", icon: Shield }] : []),
+    ...(isAdmin || isSKUManager ? [{ name: "Staff SO", href: "/staff", icon: Users }] : []),
+    ...(isAdmin ? [{ name: "Pengumuman", href: "/announcements", icon: Megaphone }] : []),
+    { name: "Kritik & Saran", href: "/feedback", icon: MessageSquare },
+    ...(isAdmin ? [{ name: "Motivasi", href: "/motivation", icon: Heart }] : []),
     { name: "Edit Profil", href: "/profile", icon: UserCog },
   ];
 

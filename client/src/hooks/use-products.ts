@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import { type Product } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 export type ExcelImportResult = {
   imported: number;
@@ -9,13 +10,168 @@ export type ExcelImportResult = {
   errors: { row: number; message: string }[];
 };
 
-export function useProducts() {
+export function useProducts(locationType?: string) {
+  const path = locationType
+    ? `${api.products.list.path}?locationType=${encodeURIComponent(locationType)}`
+    : api.products.list.path;
+
   return useQuery<Product[]>({
-    queryKey: [api.products.list.path],
+    queryKey: [api.products.list.path, locationType],
     queryFn: async () => {
-      const res = await fetch(api.products.list.path, { credentials: "include" });
+      const res = await fetch(path, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch products");
       return res.json();
+    },
+  });
+}
+
+export function useProductsWithDetails() {
+  return useQuery({
+    queryKey: [api.products.withDetails.path],
+    queryFn: async () => {
+      const res = await fetch(api.products.withDetails.path, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch products with details");
+      return res.json();
+    },
+  });
+}
+
+export function useProductPhotos(productId: number) {
+  return useQuery({
+    queryKey: [api.productPhotos.list.path, productId],
+    queryFn: async () => {
+      const url = buildUrl(api.productPhotos.list.path, { productId });
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch product photos");
+      return res.json();
+    },
+    enabled: !!productId,
+  });
+}
+
+export function useUploadProductPhoto() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ productId, file }: { productId: number; file: File }) => {
+      const formData = new FormData();
+      formData.append("photo", file);
+      const url = buildUrl(api.productPhotos.upload.path, { productId });
+      const res = await fetch(url, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to upload photo");
+      return res.json();
+    },
+    onSuccess: (_, { productId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.productPhotos.list.path, productId] });
+      queryClient.invalidateQueries({ queryKey: [api.products.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.products.withDetails.path] });
+      toast({ title: "Photo Uploaded", description: "Product photo has been saved." });
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
+export function useDeleteProductPhoto() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ productId, photoId }: { productId: number; photoId: number }) => {
+      const url = buildUrl(api.productPhotos.delete.path, { productId, photoId });
+      const res = await fetch(url, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed to delete photo");
+    },
+    onSuccess: (_, { productId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.productPhotos.list.path, productId] });
+      queryClient.invalidateQueries({ queryKey: [api.products.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.products.withDetails.path] });
+      toast({ title: "Photo Deleted", description: "Product photo has been removed." });
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
+export function useProductUnits(productId: number) {
+  return useQuery({
+    queryKey: [api.productUnits.list.path, productId],
+    queryFn: async () => {
+      const url = buildUrl(api.productUnits.list.path, { productId });
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch product units");
+      return res.json();
+    },
+    enabled: !!productId,
+  });
+}
+
+export function useCreateProductUnit() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ productId, ...data }: { productId: number; unitName: string; conversionToBase: number; baseUnit: string; sortOrder?: number }) => {
+      const url = buildUrl(api.productUnits.create.path, { productId });
+      const res = await apiRequest("POST", url, data);
+      return res.json();
+    },
+    onSuccess: (_, { productId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.productUnits.list.path, productId] });
+      queryClient.invalidateQueries({ queryKey: [api.products.withDetails.path] });
+      toast({ title: "Unit Created", description: "Product unit has been added." });
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
+export function useUpdateProductUnit() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ productId, unitId, ...data }: { productId: number; unitId: number; unitName?: string; conversionToBase?: number; baseUnit?: string; sortOrder?: number }) => {
+      const url = buildUrl(api.productUnits.update.path, { productId, unitId });
+      const res = await apiRequest("PUT", url, data);
+      return res.json();
+    },
+    onSuccess: (_, { productId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.productUnits.list.path, productId] });
+      queryClient.invalidateQueries({ queryKey: [api.products.withDetails.path] });
+      toast({ title: "Unit Updated", description: "Product unit has been updated." });
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
+export function useDeleteProductUnit() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ productId, unitId }: { productId: number; unitId: number }) => {
+      const url = buildUrl(api.productUnits.delete.path, { productId, unitId });
+      const res = await fetch(url, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed to delete unit");
+    },
+    onSuccess: (_, { productId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.productUnits.list.path, productId] });
+      queryClient.invalidateQueries({ queryKey: [api.products.withDetails.path] });
+      toast({ title: "Unit Deleted", description: "Product unit has been removed." });
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
 }
@@ -53,6 +209,7 @@ export function useCreateProduct() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.products.list.path] });
       queryClient.invalidateQueries({ queryKey: [api.products.categories.path] });
+      queryClient.invalidateQueries({ queryKey: [api.products.withDetails.path] });
       toast({ title: "Product Created", description: "Successfully added new SKU to inventory." });
     },
     onError: (error) => {
@@ -81,6 +238,7 @@ export function useUpdateProduct() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.products.list.path] });
       queryClient.invalidateQueries({ queryKey: [api.products.categories.path] });
+      queryClient.invalidateQueries({ queryKey: [api.products.withDetails.path] });
       toast({ title: "Product Updated", description: "Inventory details have been saved." });
     },
     onError: (error) => {
@@ -102,6 +260,7 @@ export function useDeleteProduct() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.products.list.path] });
       queryClient.invalidateQueries({ queryKey: [api.products.categories.path] });
+      queryClient.invalidateQueries({ queryKey: [api.products.withDetails.path] });
       toast({ title: "Product Deleted", description: "The SKU has been removed from the system." });
     },
   });

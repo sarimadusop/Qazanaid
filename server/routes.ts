@@ -10,8 +10,18 @@ import fs from "fs";
 import * as XLSX from "xlsx";
 import { authStorage } from "./replit_integrations/auth/storage";
 import archiver from "archiver";
+import { productPhotos, opnameRecordPhotos } from "@shared/schema";
+import { db } from "./db";
+import { lt } from "drizzle-orm";
 
 const upload = multer({ dest: "/tmp/uploads", limits: { fileSize: 10 * 1024 * 1024 } });
+const uploadsDir = path.join(process.cwd(), "uploads");
+
+function ensureUploadsDir() {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+}
 
 function getUserId(req: Request): string {
   return (req.session as any)?.userId;
@@ -42,6 +52,32 @@ function requireRole(...roles: string[]) {
   };
 }
 
+// === Auto-delete: cleanup photos older than 7 days ===
+async function cleanupOldPhotos() {
+  try {
+    ensureUploadsDir();
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const files = fs.readdirSync(uploadsDir);
+    for (const file of files) {
+      const filePath = path.join(uploadsDir, file);
+      try {
+        const stat = fs.statSync(filePath);
+        if (stat.isFile() && stat.mtime < sevenDaysAgo) {
+          fs.unlinkSync(filePath);
+          console.log(`Cleaned up old photo: ${file}`);
+        }
+      } catch {}
+    }
+
+    await db.delete(productPhotos).where(lt(productPhotos.createdAt, sevenDaysAgo));
+    await db.delete(opnameRecordPhotos).where(lt(opnameRecordPhotos.createdAt, sevenDaysAgo));
+    console.log("Photo cleanup completed");
+  } catch (err) {
+    console.error("Photo cleanup error:", err);
+  }
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -49,6 +85,9 @@ export async function registerRoutes(
 
   await setupAuth(app);
   registerAuthRoutes(app);
+
+  ensureUploadsDir();
+  cleanupOldPhotos();
 
   // === Roles ===
   app.get(api.roles.me.path, isAuthenticated, async (req, res) => {
@@ -123,9 +162,22 @@ export async function registerRoutes(
     res.json(cats);
   });
 
+  app.get(api.products.withDetails.path, isAuthenticated, async (req, res) => {
+    const adminId = await getTeamAdminId(req);
+    const result = await storage.getProductsWithPhotosAndUnits(adminId);
+    res.json(result);
+  });
+
   app.get(api.products.list.path, isAuthenticated, async (req, res) => {
     const adminId = await getTeamAdminId(req);
-    const prods = await storage.getProducts(adminId);
+    const locationType = req.query.locationType as string | undefined;
+    const role = await getUserRole(req);
+
+    let effectiveLocationType = locationType;
+    if (role === "stock_counter_toko") effectiveLocationType = "toko";
+    if (role === "stock_counter_gudang") effectiveLocationType = "gudang";
+
+    const prods = await storage.getProducts(adminId, effectiveLocationType);
     res.json(prods);
   });
 
@@ -172,7 +224,152 @@ export async function registerRoutes(
     res.sendStatus(204);
   });
 
-  // === Photo Upload ===
+  // === Product Photos (multi-photo support) ===
+  app.get(api.productPhotos.list.path, isAuthenticated, async (req, res) => {
+    const productId = Number(req.params.productId);
+    const photos = await storage.getProductPhotos(productId);
+    res.json(photos);
+  });
+
+  app.post(api.productPhotos.upload.path, isAuthenticated, requireRole("admin", "sku_manager"), upload.single("photo"), async (req, res) => {
+    try {
+      const productId = Number(req.params.productId);
+      const adminId = await getTeamAdminId(req);
+      const product = await storage.getProduct(productId);
+      if (!product || product.userId !== adminId) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const safeName = product.name.replace(/[^a-zA-Z0-9]/g, "_");
+      const ext = path.extname(req.file.originalname) || ".jpg";
+      const filename = `${safeName}_${Date.now()}${ext}`;
+
+      ensureUploadsDir();
+      const destPath = path.join(uploadsDir, filename);
+      fs.copyFileSync(req.file.path, destPath);
+      fs.unlinkSync(req.file.path);
+
+      const url = `/uploads/${filename}`;
+      const photo = await storage.addProductPhoto({ productId, url });
+
+      res.status(201).json(photo);
+    } catch (err) {
+      console.error("Product photo upload error:", err);
+      res.status(500).json({ message: "Upload failed" });
+    }
+  });
+
+  app.delete(api.productPhotos.delete.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
+    try {
+      const photoId = Number(req.params.photoId);
+      const productId = Number(req.params.productId);
+      const adminId = await getTeamAdminId(req);
+      const product = await storage.getProduct(productId);
+      if (!product || product.userId !== adminId) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      const photos = await storage.getProductPhotos(productId);
+      const photo = photos.find(p => p.id === photoId);
+      if (!photo) {
+        return res.status(404).json({ message: "Photo not found" });
+      }
+
+      const filePath = path.join(process.cwd(), photo.url.replace(/^\//, ""));
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+
+      await storage.deleteProductPhoto(photoId);
+      res.sendStatus(204);
+    } catch (err) {
+      console.error("Delete photo error:", err);
+      res.status(500).json({ message: "Failed to delete photo" });
+    }
+  });
+
+  // === Product Units (unit beranak) ===
+  app.get(api.productUnits.list.path, isAuthenticated, async (req, res) => {
+    const productId = Number(req.params.productId);
+    const units = await storage.getProductUnits(productId);
+    res.json(units);
+  });
+
+  app.post(api.productUnits.create.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
+    try {
+      const productId = Number(req.params.productId);
+      const adminId = await getTeamAdminId(req);
+      const product = await storage.getProduct(productId);
+      if (!product || product.userId !== adminId) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      const { unitName, conversionToBase, baseUnit, sortOrder } = req.body;
+      if (!unitName || !baseUnit) {
+        return res.status(400).json({ message: "unitName and baseUnit are required" });
+      }
+
+      const unit = await storage.addProductUnit({
+        productId,
+        unitName,
+        conversionToBase: conversionToBase || 1,
+        baseUnit,
+        sortOrder: sortOrder || 0,
+      });
+      res.status(201).json(unit);
+    } catch (err) {
+      console.error("Create unit error:", err);
+      res.status(500).json({ message: "Failed to create unit" });
+    }
+  });
+
+  app.put(api.productUnits.update.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
+    try {
+      const productId = Number(req.params.productId);
+      const unitId = Number(req.params.unitId);
+      const adminId = await getTeamAdminId(req);
+      const product = await storage.getProduct(productId);
+      if (!product || product.userId !== adminId) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      const { unitName, conversionToBase, baseUnit, sortOrder } = req.body;
+      const unit = await storage.updateProductUnit(unitId, {
+        unitName,
+        conversionToBase,
+        baseUnit,
+        sortOrder,
+      });
+      res.json(unit);
+    } catch (err) {
+      console.error("Update unit error:", err);
+      res.status(500).json({ message: "Failed to update unit" });
+    }
+  });
+
+  app.delete(api.productUnits.delete.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
+    try {
+      const productId = Number(req.params.productId);
+      const unitId = Number(req.params.unitId);
+      const adminId = await getTeamAdminId(req);
+      const product = await storage.getProduct(productId);
+      if (!product || product.userId !== adminId) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      await storage.deleteProductUnit(unitId);
+      res.sendStatus(204);
+    } catch (err) {
+      console.error("Delete unit error:", err);
+      res.status(500).json({ message: "Failed to delete unit" });
+    }
+  });
+
+  // === Photo Upload (legacy single photo) ===
   app.post(api.upload.photo.path, isAuthenticated, requireRole("admin", "sku_manager"), upload.single("photo"), async (req, res) => {
     try {
       const productId = Number(req.params.productId);
@@ -186,17 +383,12 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      const date = new Date().toISOString().split("T")[0];
       const safeName = product.name.replace(/[^a-zA-Z0-9]/g, "_");
       const ext = path.extname(req.file.originalname) || ".jpg";
-      const filename = `${safeName}_${date}${ext}`;
+      const filename = `${safeName}_${Date.now()}${ext}`;
 
-      const publicDir = path.join(process.cwd(), "client", "public", "uploads");
-      if (!fs.existsSync(publicDir)) {
-        fs.mkdirSync(publicDir, { recursive: true });
-      }
-
-      const destPath = path.join(publicDir, filename);
+      ensureUploadsDir();
+      const destPath = path.join(uploadsDir, filename);
       fs.copyFileSync(req.file.path, destPath);
       fs.unlinkSync(req.file.path);
 
@@ -210,7 +402,7 @@ export async function registerRoutes(
     }
   });
 
-  // === Opname Photo Upload ===
+  // === Opname Photo Upload (legacy single photo) ===
   app.post(api.upload.opnamePhoto.path, isAuthenticated, upload.single("photo"), async (req, res) => {
     try {
       const sessionId = Number(req.params.sessionId);
@@ -231,18 +423,12 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      const now = new Date();
-      const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
       const safeName = product.name.replace(/[^a-zA-Z0-9]/g, "_");
       const ext = path.extname(req.file.originalname) || ".jpg";
-      const filename = `${safeName}SO_${dateStr}${ext}`;
+      const filename = `${safeName}_SO_${Date.now()}${ext}`;
 
-      const publicDir = path.join(process.cwd(), "client", "public", "uploads");
-      if (!fs.existsSync(publicDir)) {
-        fs.mkdirSync(publicDir, { recursive: true });
-      }
-
-      const destPath = path.join(publicDir, filename);
+      ensureUploadsDir();
+      const destPath = path.join(uploadsDir, filename);
       fs.copyFileSync(req.file.path, destPath);
       fs.unlinkSync(req.file.path);
 
@@ -253,6 +439,75 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Opname photo upload error:", err);
       res.status(500).json({ message: "Upload failed" });
+    }
+  });
+
+  // === Opname Record Photos (multi-photo for SO) ===
+  app.post(api.recordPhotos.upload.path, isAuthenticated, upload.single("photo"), async (req, res) => {
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const productId = Number(req.params.productId);
+      const adminId = await getTeamAdminId(req);
+
+      const session = await storage.getSession(sessionId);
+      if (!session || session.userId !== adminId) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+
+      const product = await storage.getProduct(productId);
+      if (!product || product.userId !== adminId) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const safeName = product.name.replace(/[^a-zA-Z0-9]/g, "_");
+      const ext = path.extname(req.file.originalname) || ".jpg";
+      const filename = `${safeName}_SO_${Date.now()}${ext}`;
+
+      ensureUploadsDir();
+      const destPath = path.join(uploadsDir, filename);
+      fs.copyFileSync(req.file.path, destPath);
+      fs.unlinkSync(req.file.path);
+
+      const url = `/uploads/${filename}`;
+
+      await storage.addProductPhoto({ productId, url });
+
+      const record = session.records.find(r => r.productId === productId);
+      if (record) {
+        const recordPhoto = await storage.addRecordPhoto({ recordId: record.id, url });
+        await storage.updateRecordPhoto(sessionId, productId, url);
+        res.status(201).json(recordPhoto);
+      } else {
+        await storage.updateRecordPhoto(sessionId, productId, url);
+        res.status(201).json({ url });
+      }
+    } catch (err) {
+      console.error("Record photo upload error:", err);
+      res.status(500).json({ message: "Upload failed" });
+    }
+  });
+
+  app.delete(api.recordPhotos.delete.path, isAuthenticated, async (req, res) => {
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const productId = Number(req.params.productId);
+      const photoId = Number(req.params.photoId);
+      const adminId = await getTeamAdminId(req);
+
+      const session = await storage.getSession(sessionId);
+      if (!session || session.userId !== adminId) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+
+      await storage.deleteRecordPhoto(photoId);
+      res.sendStatus(204);
+    } catch (err) {
+      console.error("Delete record photo error:", err);
+      res.status(500).json({ message: "Failed to delete photo" });
     }
   });
 
@@ -279,15 +534,16 @@ export async function registerRoutes(
       const archive = archiver("zip", { zlib: { level: 5 } });
       archive.pipe(res);
 
+      const now = new Date(session.startedAt);
+      const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+
       for (const record of recordsWithPhotos) {
         const relativePath = record.photoUrl!.replace(/^\//, "");
-        const filePath = path.join(process.cwd(), "client", "public", relativePath);
+        const filePath = path.join(process.cwd(), relativePath);
         if (fs.existsSync(filePath)) {
           const ext = path.extname(record.photoUrl!) || ".jpg";
-          const now = new Date(session.startedAt);
-          const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
           const safeName = record.product.name.replace(/[^a-zA-Z0-9]/g, "_");
-          const zipFilename = `${safeName}SO_${dateStr}${ext}`;
+          const zipFilename = `${safeTitle}/${safeName}_${dateStr}${ext}`;
           archive.file(filePath, { name: zipFilename });
         }
       }
@@ -304,11 +560,18 @@ export async function registerRoutes(
   // === Sessions ===
   app.get(api.sessions.list.path, isAuthenticated, async (req, res) => {
     const adminId = await getTeamAdminId(req);
-    const sessions = await storage.getSessions(adminId);
+    const locationType = req.query.locationType as string | undefined;
+    const role = await getUserRole(req);
+
+    let effectiveLocationType = locationType;
+    if (role === "stock_counter_toko") effectiveLocationType = "toko";
+    if (role === "stock_counter_gudang") effectiveLocationType = "gudang";
+
+    const sessions = await storage.getSessions(adminId, effectiveLocationType);
     res.json(sessions);
   });
 
-  app.post(api.sessions.create.path, isAuthenticated, requireRole("admin", "stock_counter"), async (req, res) => {
+  app.post(api.sessions.create.path, isAuthenticated, requireRole("admin", "stock_counter", "stock_counter_toko", "stock_counter_gudang"), async (req, res) => {
     try {
       const input = api.sessions.create.input.parse(req.body);
       const adminId = await getTeamAdminId(req);
@@ -331,7 +594,7 @@ export async function registerRoutes(
     res.json(session);
   });
 
-  app.post(api.sessions.complete.path, isAuthenticated, requireRole("admin", "stock_counter"), async (req, res) => {
+  app.post(api.sessions.complete.path, isAuthenticated, requireRole("admin", "stock_counter", "stock_counter_toko", "stock_counter_gudang"), async (req, res) => {
     const adminId = await getTeamAdminId(req);
     const session = await storage.getSession(Number(req.params.id));
     if (!session || session.userId !== adminId) {
@@ -342,21 +605,218 @@ export async function registerRoutes(
   });
 
   // === Records ===
-  app.post(api.records.update.path, isAuthenticated, requireRole("admin", "stock_counter"), async (req, res) => {
+  app.post(api.records.update.path, isAuthenticated, requireRole("admin", "stock_counter", "stock_counter_toko", "stock_counter_gudang"), async (req, res) => {
     const adminId = await getTeamAdminId(req);
     const sessionId = Number(req.params.sessionId);
     const session = await storage.getSession(sessionId);
     if (!session || session.userId !== adminId) {
       return res.status(404).json({ message: 'Session not found' });
     }
-    const { productId, actualStock, notes } = req.body;
+    const { productId, actualStock, notes, unitValues } = req.body;
     
     if (typeof productId !== 'number' || typeof actualStock !== 'number') {
       return res.status(400).json({ message: "Invalid input" });
     }
 
-    const record = await storage.updateRecord(sessionId, productId, actualStock, notes);
+    const record = await storage.updateRecord(sessionId, productId, actualStock, notes, unitValues);
     res.json(record);
+  });
+
+  // === Staff Members ===
+  app.get(api.staff.list.path, isAuthenticated, async (req, res) => {
+    const adminId = await getTeamAdminId(req);
+    const members = await storage.getStaffMembers(adminId);
+    res.json(members);
+  });
+
+  app.post(api.staff.create.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
+    try {
+      const adminId = await getTeamAdminId(req);
+      const { name, locationType } = req.body;
+      if (!name) {
+        return res.status(400).json({ message: "Name is required" });
+      }
+      const member = await storage.createStaffMember({
+        name,
+        locationType: locationType || "toko",
+        userId: adminId,
+        active: 1,
+      });
+      res.status(201).json(member);
+    } catch (err) {
+      console.error("Create staff error:", err);
+      res.status(500).json({ message: "Failed to create staff member" });
+    }
+  });
+
+  app.put(api.staff.update.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { name, locationType, active } = req.body;
+      const member = await storage.updateStaffMember(id, { name, locationType, active });
+      res.json(member);
+    } catch (err) {
+      console.error("Update staff error:", err);
+      res.status(500).json({ message: "Failed to update staff member" });
+    }
+  });
+
+  app.delete(api.staff.delete.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
+    try {
+      await storage.deleteStaffMember(Number(req.params.id));
+      res.sendStatus(204);
+    } catch (err) {
+      console.error("Delete staff error:", err);
+      res.status(500).json({ message: "Failed to delete staff member" });
+    }
+  });
+
+  // === Announcements ===
+  app.get(api.announcements.list.path, isAuthenticated, async (req, res) => {
+    const adminId = await getTeamAdminId(req);
+    const items = await storage.getAnnouncements(adminId);
+    res.json(items);
+  });
+
+  app.post(api.announcements.create.path, isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const adminId = await getTeamAdminId(req);
+      const { title, content, expiresAt } = req.body;
+      if (!title || !content) {
+        return res.status(400).json({ message: "Title and content are required" });
+      }
+      const announcement = await storage.createAnnouncement({
+        title,
+        content,
+        userId: adminId,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+      });
+      res.status(201).json(announcement);
+    } catch (err) {
+      console.error("Create announcement error:", err);
+      res.status(500).json({ message: "Failed to create announcement" });
+    }
+  });
+
+  app.put(api.announcements.update.path, isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { title, content, expiresAt } = req.body;
+      const updates: Record<string, unknown> = {};
+      if (title !== undefined) updates.title = title;
+      if (content !== undefined) updates.content = content;
+      if (expiresAt !== undefined) updates.expiresAt = expiresAt ? new Date(expiresAt) : null;
+      const announcement = await storage.updateAnnouncement(id, updates as any);
+      res.json(announcement);
+    } catch (err) {
+      console.error("Update announcement error:", err);
+      res.status(500).json({ message: "Failed to update announcement" });
+    }
+  });
+
+  app.delete(api.announcements.delete.path, isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      await storage.deleteAnnouncement(Number(req.params.id));
+      res.sendStatus(204);
+    } catch (err) {
+      console.error("Delete announcement error:", err);
+      res.status(500).json({ message: "Failed to delete announcement" });
+    }
+  });
+
+  // === Feedback (Kritik & Saran) ===
+  app.get(api.feedback.list.path, isAuthenticated, async (req, res) => {
+    const role = await getUserRole(req);
+    if (role === "admin") {
+      const adminId = await getTeamAdminId(req);
+      const allFeedback = await storage.getFeedback(adminId);
+      res.json(allFeedback);
+    } else {
+      const userId = getUserId(req);
+      const userFeedback = await storage.getFeedback(userId);
+      res.json(userFeedback);
+    }
+  });
+
+  app.post(api.feedback.create.path, isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const adminId = await getTeamAdminId(req);
+      const { type, content } = req.body;
+      if (!content) {
+        return res.status(400).json({ message: "Content is required" });
+      }
+
+      const user = await authStorage.getUser(userId);
+      const fb = await storage.createFeedback({
+        userId: adminId,
+        userName: user?.username || user?.firstName || "Unknown",
+        type: type || "saran",
+        content,
+      });
+      res.status(201).json(fb);
+    } catch (err) {
+      console.error("Create feedback error:", err);
+      res.status(500).json({ message: "Failed to create feedback" });
+    }
+  });
+
+  app.delete(api.feedback.delete.path, isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      await storage.deleteFeedback(Number(req.params.id));
+      res.sendStatus(204);
+    } catch (err) {
+      console.error("Delete feedback error:", err);
+      res.status(500).json({ message: "Failed to delete feedback" });
+    }
+  });
+
+  // === Motivation Messages ===
+  app.get(api.motivation.list.path, isAuthenticated, async (req, res) => {
+    const adminId = await getTeamAdminId(req);
+    const messages = await storage.getMotivationMessages(adminId);
+    res.json(messages);
+  });
+
+  app.post(api.motivation.create.path, isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const adminId = await getTeamAdminId(req);
+      const { message } = req.body;
+      if (!message) {
+        return res.status(400).json({ message: "Message is required" });
+      }
+      const msg = await storage.createMotivationMessage({
+        message,
+        userId: adminId,
+        active: 1,
+      });
+      res.status(201).json(msg);
+    } catch (err) {
+      console.error("Create motivation error:", err);
+      res.status(500).json({ message: "Failed to create motivation message" });
+    }
+  });
+
+  app.put(api.motivation.update.path, isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { message, active } = req.body;
+      const msg = await storage.updateMotivationMessage(id, { message, active });
+      res.json(msg);
+    } catch (err) {
+      console.error("Update motivation error:", err);
+      res.status(500).json({ message: "Failed to update motivation message" });
+    }
+  });
+
+  app.delete(api.motivation.delete.path, isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      await storage.deleteMotivationMessage(Number(req.params.id));
+      res.sendStatus(204);
+    } catch (err) {
+      console.error("Delete motivation error:", err);
+      res.status(500).json({ message: "Failed to delete motivation message" });
+    }
   });
 
   // === Excel Template & Import ===

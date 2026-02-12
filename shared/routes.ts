@@ -19,76 +19,79 @@ export const api = {
     list: {
       method: 'GET' as const,
       path: '/api/products' as const,
-      responses: {
-        200: z.array(z.custom<typeof products.$inferSelect>()),
-      },
     },
     create: {
       method: 'POST' as const,
       path: '/api/products' as const,
       input: insertProductSchema.omit({ userId: true }),
-      responses: {
-        201: z.custom<typeof products.$inferSelect>(),
-        400: errorSchemas.validation,
-      },
     },
     update: {
       method: 'PUT' as const,
       path: '/api/products/:id' as const,
       input: insertProductSchema.omit({ userId: true }).partial(),
-      responses: {
-        200: z.custom<typeof products.$inferSelect>(),
-        404: errorSchemas.notFound,
-      },
     },
     delete: {
       method: 'DELETE' as const,
       path: '/api/products/:id' as const,
-      responses: {
-        204: z.void(),
-        404: errorSchemas.notFound,
-      },
     },
     categories: {
       method: 'GET' as const,
       path: '/api/products/categories' as const,
-      responses: {
-        200: z.array(z.string()),
-      },
+    },
+    withDetails: {
+      method: 'GET' as const,
+      path: '/api/products/with-details' as const,
+    },
+  },
+  productPhotos: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/products/:productId/photos' as const,
+    },
+    upload: {
+      method: 'POST' as const,
+      path: '/api/products/:productId/photos' as const,
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/products/:productId/photos/:photoId' as const,
+    },
+  },
+  productUnits: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/products/:productId/units' as const,
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/products/:productId/units' as const,
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/products/:productId/units/:unitId' as const,
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/products/:productId/units/:unitId' as const,
     },
   },
   sessions: {
     list: {
       method: 'GET' as const,
       path: '/api/sessions' as const,
-      responses: {
-        200: z.array(z.custom<typeof opnameSessions.$inferSelect>()),
-      },
     },
     create: {
       method: 'POST' as const,
       path: '/api/sessions' as const,
       input: insertSessionSchema.omit({ userId: true }),
-      responses: {
-        201: z.custom<typeof opnameSessions.$inferSelect>(),
-        400: errorSchemas.validation,
-      },
     },
     get: {
       method: 'GET' as const,
       path: '/api/sessions/:id' as const,
-      responses: {
-        200: z.custom<typeof opnameSessions.$inferSelect & { records: (typeof opnameRecords.$inferSelect & { product: typeof products.$inferSelect })[] }>(),
-        404: errorSchemas.notFound,
-      },
     },
     complete: {
       method: 'POST' as const,
       path: '/api/sessions/:id/complete' as const,
-      responses: {
-        200: z.custom<typeof opnameSessions.$inferSelect>(),
-        404: errorSchemas.notFound,
-      },
     },
   },
   records: {
@@ -99,71 +102,50 @@ export const api = {
         productId: z.number(),
         actualStock: z.number(),
         notes: z.string().optional(),
+        unitValues: z.string().optional(),
       }),
-      responses: {
-        200: z.custom<typeof opnameRecords.$inferSelect>(),
-        404: errorSchemas.notFound,
-      },
-    }
+    },
+  },
+  recordPhotos: {
+    upload: {
+      method: 'POST' as const,
+      path: '/api/sessions/:sessionId/records/:productId/photos' as const,
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/sessions/:sessionId/records/:productId/photos/:photoId' as const,
+    },
   },
   roles: {
     me: {
       method: 'GET' as const,
       path: '/api/roles/me' as const,
-      responses: {
-        200: z.custom<typeof userRoles.$inferSelect>(),
-      },
     },
     list: {
       method: 'GET' as const,
       path: '/api/roles' as const,
-      responses: {
-        200: z.array(z.object({
-          userId: z.string(),
-          role: z.string(),
-          email: z.string().nullable().optional(),
-          firstName: z.string().nullable().optional(),
-          lastName: z.string().nullable().optional(),
-        })),
-      },
     },
     set: {
       method: 'POST' as const,
       path: '/api/roles' as const,
       input: z.object({
         userId: z.string(),
-        role: z.enum(["admin", "sku_manager", "stock_counter"]),
+        role: z.enum(["admin", "sku_manager", "stock_counter", "stock_counter_toko", "stock_counter_gudang"]),
       }),
-      responses: {
-        200: z.custom<typeof userRoles.$inferSelect>(),
-        403: errorSchemas.validation,
-      },
     },
   },
   upload: {
     photo: {
       method: 'POST' as const,
       path: '/api/upload/photo/:productId' as const,
-      responses: {
-        200: z.object({ url: z.string() }),
-        400: errorSchemas.validation,
-      },
     },
     opnamePhoto: {
       method: 'POST' as const,
       path: '/api/upload/opname-photo/:sessionId/:productId' as const,
-      responses: {
-        200: z.object({ url: z.string() }),
-        400: errorSchemas.validation,
-      },
     },
     downloadZip: {
       method: 'GET' as const,
       path: '/api/sessions/:id/download-photos' as const,
-      responses: {
-        200: z.any(),
-        404: errorSchemas.notFound,
-      },
     },
   },
   excel: {
@@ -174,17 +156,74 @@ export const api = {
     import: {
       method: 'POST' as const,
       path: '/api/excel/import' as const,
-      responses: {
-        200: z.object({
-          imported: z.number(),
-          skipped: z.number(),
-          errors: z.array(z.object({
-            row: z.number(),
-            message: z.string(),
-          })),
-        }),
-        400: errorSchemas.validation,
-      },
+    },
+  },
+  staff: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/staff' as const,
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/staff' as const,
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/staff/:id' as const,
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/staff/:id' as const,
+    },
+  },
+  announcements: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/announcements' as const,
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/announcements' as const,
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/announcements/:id' as const,
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/announcements/:id' as const,
+    },
+  },
+  feedback: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/feedback' as const,
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/feedback' as const,
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/feedback/:id' as const,
+    },
+  },
+  motivation: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/motivation' as const,
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/motivation' as const,
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/motivation/:id' as const,
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/motivation/:id' as const,
     },
   },
 };

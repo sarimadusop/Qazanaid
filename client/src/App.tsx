@@ -12,6 +12,10 @@ import Sessions from "@/pages/Sessions";
 import SessionDetail from "@/pages/SessionDetail";
 import RoleManagement from "@/pages/RoleManagement";
 import Profile from "@/pages/Profile";
+import StaffManagement from "@/pages/StaffManagement";
+import Announcements from "@/pages/Announcements";
+import FeedbackPage from "@/pages/FeedbackPage";
+import MotivationPage from "@/pages/MotivationPage";
 import NotFound from "@/pages/not-found";
 import { Loader2, Package, AlertCircle, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -201,6 +205,10 @@ function AuthenticatedApp() {
             <Route path="/sessions/:id" component={SessionDetail} />
             <Route path="/roles" component={RoleManagement} />
             <Route path="/profile" component={Profile} />
+            <Route path="/staff" component={StaffManagement} />
+            <Route path="/announcements" component={Announcements} />
+            <Route path="/feedback" component={FeedbackPage} />
+            <Route path="/motivation" component={MotivationPage} />
             <Route component={NotFound} />
           </Switch>
         </div>
