@@ -1,22 +1,29 @@
 # Stockify - Inventory Management & Stock Opname
 
 ## Overview
-A full-stack inventory management application for stock opname (stock counting/auditing). Built with Express + Vite + React + PostgreSQL + Drizzle ORM.
+A full-stack inventory management application for stock opname (stock counting/auditing). Built with Express + Vite + React + PostgreSQL + Drizzle ORM. Supports location-based access control (Toko/Gudang), multi-photo with compression, hierarchical units, staff management, announcements, feedback, and motivation messages.
 
 ## Recent Changes
-- **2026-02-11**: Switched to username/password auth (bcryptjs). Every registered user is admin (superuser). Admin can create sub-users (sku_manager, stock_counter) from Role Management page.
-- **2026-02-11**: Team-based data isolation: admin creates sub-users, all team members see admin's data. Other admins can't see each other's data.
-- **2026-02-11**: Edit Profile page (change name, username, password)
-- **2026-02-11**: Inline edit product name and stock in Products table
-- **2026-02-11**: Excel template download & bulk import for products (with validation: duplicate SKU, missing fields, error reporting)
-- **2026-02-11**: Foto upload per opname record (NamaProdukSO_tanggalupload.ext), preview foto, download ZIP semua foto per sesi
-- **2026-02-11**: Lupa Password feature: Admin can reset sub-user passwords from Role Management. Login page shows "Lupa Password?" info dialog.
+- **2026-02-12**: Added location-based access (Toko/Gudang) for products and sessions
+- **2026-02-12**: New roles: stock_counter_toko (only toko), stock_counter_gudang (only gudang)
+- **2026-02-12**: Multi-photo support per product and per opname record with client-side compression
+- **2026-02-12**: Unit hierarchy (unit beranak) for gudang products (e.g., 1 Dus = 24 Pack)
+- **2026-02-12**: Staff Management page - manage SO staff with location assignment
+- **2026-02-12**: "Siapa yang Stock Opname?" dialog with staff selection and motivation messages
+- **2026-02-12**: Announcements page (admin-only), displayed on Dashboard
+- **2026-02-12**: Kritik & Saran (Feedback) page for all users
+- **2026-02-12**: Motivation Messages page (admin-only) - customizable messages for SO dialog
+- **2026-02-12**: Photos auto-delete after 7 days, stored in /uploads directory
+- **2026-02-12**: Photo compression before upload (max 1200px, 0.7 quality JPEG)
+- **2026-02-11**: Switched to username/password auth (bcryptjs). Every registered user is admin (superuser). Admin can create sub-users from Role Management page.
+- **2026-02-11**: Team-based data isolation: admin creates sub-users, all team members see admin's data.
+- **2026-02-11**: Edit Profile, Inline edit products, Excel import/export, Lupa Password
 
 ## Architecture
 
 ### Backend
-- **server/routes.ts** - API routes with authentication, role-based middleware, team-based data access via getTeamAdminId()
-- **server/storage.ts** - Database CRUD operations via IStorage interface
+- **server/routes.ts** - API routes with authentication, role-based middleware, team-based data access, photo uploads, auto-cleanup
+- **server/storage.ts** - Database CRUD operations via IStorage interface (products, sessions, photos, units, staff, announcements, feedback, motivation)
 - **server/replit_integrations/auth/routes.ts** - Username/password auth (register, login, logout, profile update, create sub-user)
 - **server/replit_integrations/auth/storage.ts** - User CRUD operations
 - **server/replit_integrations/auth/replitAuth.ts** - Session middleware (express-session + connect-pg-simple)
@@ -26,42 +33,73 @@ A full-stack inventory management application for stock opname (stock counting/a
 
 ### Frontend (client/src/)
 - **App.tsx** - Main app with auth-gated routing, login/register forms
-- **pages/Dashboard.tsx** - Overview with stats, active sessions, low stock alerts
-- **pages/Products.tsx** - Product catalog with search, category filter, photo upload, inline edit (name/stock)
-- **pages/Sessions.tsx** - Stock opname session list with create dialog
-- **pages/SessionDetail.tsx** - Individual session with inline stock counting, category filter, Excel export
-- **pages/RoleManagement.tsx** - Admin-only: manage team users, create sub-users with role assignment
+- **pages/Dashboard.tsx** - Overview with stats, active sessions, low stock alerts, announcements
+- **pages/Products.tsx** - Product catalog with location tabs (Toko/Gudang), multi-photo gallery, unit management, search, category filter, inline edit
+- **pages/Sessions.tsx** - Stock opname session list with location filtering, staff selection dialog, motivation messages
+- **pages/SessionDetail.tsx** - Individual session with multi-photo per record, unit-based input for gudang, photo compression, category filter, Excel export
+- **pages/RoleManagement.tsx** - Admin-only: manage team users, create sub-users with 5 role types
+- **pages/StaffManagement.tsx** - Manage SO staff members with location assignment
+- **pages/Announcements.tsx** - Admin creates/edits announcements for team
+- **pages/FeedbackPage.tsx** - Kritik & Saran submission and viewing
+- **pages/MotivationPage.tsx** - Admin manages motivation messages
 - **pages/Profile.tsx** - Edit profile (name, username, password)
-- **components/Sidebar.tsx** - Navigation sidebar with user info and role display
-- **hooks/use-auth.ts** - Authentication state hook (login, register, logout)
-- **hooks/use-role.ts** - User role and permissions hook
-- **hooks/use-products.ts** - Product CRUD hooks (including useUpdateProduct)
-- **hooks/use-sessions.ts** - Session/record CRUD hooks
+- **components/Sidebar.tsx** - Navigation sidebar with role-based menu items
+- **hooks/use-auth.ts** - Authentication state hook
+- **hooks/use-role.ts** - Role and permissions hook (canCountToko, canCountGudang, canCountLocation)
+- **hooks/use-products.ts** - Product, photo, unit CRUD hooks
+- **hooks/use-sessions.ts** - Session, record, record photo hooks
+- **hooks/use-staff.ts** - Staff CRUD hooks
+- **hooks/use-announcements.ts** - Announcement CRUD hooks
+- **hooks/use-feedback.ts** - Feedback CRUD hooks
+- **hooks/use-motivation.ts** - Motivation message CRUD hooks
 
 ### Database Tables
-- **users** - User accounts with username, password (hashed), adminId (null for admins, admin's ID for sub-users)
+- **users** - User accounts with username, password (hashed), adminId
 - **sessions** - Express session storage (connect-pg-simple)
-- **user_roles** - Role assignments (admin, sku_manager, stock_counter)
-- **products** - Inventory items with SKU, name, category, stock, photo. userId = adminId (team owner)
-- **opname_sessions** - Stock counting audit sessions. userId = adminId (team owner)
-- **opname_records** - Individual stock count entries per session/product
+- **user_roles** - Role assignments (admin, sku_manager, stock_counter, stock_counter_toko, stock_counter_gudang)
+- **products** - Inventory items with SKU, name, category, stock, locationType (toko/gudang). userId = adminId
+- **product_photos** - Multiple photos per product with URL and timestamp
+- **product_units** - Unit hierarchy per product (unitName, conversionToBase, baseUnit, sortOrder)
+- **opname_sessions** - Stock counting sessions with locationType, startedByName, assignedTo
+- **opname_records** - Individual stock count entries per session/product, unitValues for gudang
+- **opname_record_photos** - Multiple photos per opname record
+- **staff_members** - SO staff with name and locationType
+- **announcements** - Team announcements with title, content, expiresAt
+- **feedback** - Kritik & Saran entries with type and content
+- **motivation_messages** - Customizable motivation messages for SO dialog
 
 ### Auth & Team System
 - Every user who registers via the public form becomes an admin
-- Admin can create sub-users (sku_manager, stock_counter) from Role Management
+- Admin can create sub-users from Role Management
 - Sub-users have adminId pointing to their creator admin
 - Data access: getTeamAdminId() returns admin's own ID or sub-user's adminId
-- Products and sessions are stored with userId = adminId, so all team members see same data
-- Admin A cannot see Admin B's data
+- Products, sessions, staff, announcements etc. stored with userId = adminId
 
 ### Roles
-- **admin** - Full access: products, sessions, user management
-- **sku_manager** - Can manage products/SKUs only
-- **stock_counter** - Can create sessions and count stock only
+- **admin** - Full access: products, sessions, user management, announcements, motivation
+- **sku_manager** - Can manage products/SKUs, staff. No sessions or role management
+- **stock_counter** - Can create sessions and count stock for both Toko and Gudang
+- **stock_counter_toko** - Can only stock opname for Toko location
+- **stock_counter_gudang** - Can only stock opname for Gudang location
 
-### Photo Upload
-- Photos uploaded via multer to client/public/uploads/
-- Naming: NamaProduk_TanggalInput.ext
+### Photo System
+- Photos uploaded via multer to /uploads directory (served via express.static)
+- Client-side compression: max 1200px width, 0.7 quality JPEG (compressImage utility in lib/utils.ts)
+- Multi-photo support per product and per opname record
+- Auto-cleanup: photos older than 7 days deleted on server start
+- Naming: safeName_timestamp.ext
+
+### Unit System (Gudang Products)
+- Gudang products can have hierarchical units (unit beranak)
+- Example: 1 Dus = 24 Pack, 1 Pack = 50 gr
+- Units stored in product_units table with conversionToBase and baseUnit
+- During stock opname, gudang products show unit input fields
+- Total calculated from unit values and stored in unitValues JSON field
+
+## User Preferences
+- Indonesian language (Bahasa Indonesia) for all UI labels
+- SelectContent dropdowns: always use className="bg-card border border-border"
+- Photos stored in /uploads directory (not client/public)
 
 ## Running
 - `npm run dev` starts Express backend + Vite frontend on port 5000
