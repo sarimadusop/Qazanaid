@@ -1,36 +1,83 @@
 import { db } from "./db";
 import {
   products, opnameSessions, opnameRecords, userRoles,
+  productPhotos, productUnits, staffMembers, announcements,
+  feedback, motivationMessages, opnameRecordPhotos,
   type Product, type InsertProduct,
   type OpnameSession, type InsertOpnameSession,
   type OpnameRecord,
   type OpnameSessionWithRecords,
-  type UserRole, type InsertUserRole
+  type UserRole, type InsertUserRole,
+  type ProductPhoto, type InsertProductPhoto,
+  type ProductUnit, type InsertProductUnit,
+  type StaffMember, type InsertStaffMember,
+  type Announcement, type InsertAnnouncement,
+  type Feedback, type InsertFeedback,
+  type MotivationMessage, type InsertMotivationMessage,
+  type OpnameRecordPhoto,
+  type ProductWithPhotosAndUnits,
 } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 
 export interface IStorage {
-  getProducts(userId: string): Promise<Product[]>;
+  getProducts(userId: string, locationType?: string): Promise<Product[]>;
   getProduct(id: number): Promise<Product | undefined>;
   createProduct(product: InsertProduct): Promise<Product>;
   updateProduct(id: number, product: Partial<InsertProduct>): Promise<Product>;
   deleteProduct(id: number): Promise<void>;
+  getProductsWithPhotosAndUnits(userId: string): Promise<ProductWithPhotosAndUnits[]>;
 
-  getSessions(userId: string): Promise<OpnameSession[]>;
+  getProductPhotos(productId: number): Promise<ProductPhoto[]>;
+  addProductPhoto(data: InsertProductPhoto): Promise<ProductPhoto>;
+  deleteProductPhoto(id: number): Promise<void>;
+
+  getProductUnits(productId: number): Promise<ProductUnit[]>;
+  addProductUnit(data: InsertProductUnit): Promise<ProductUnit>;
+  updateProductUnit(id: number, data: Partial<InsertProductUnit>): Promise<ProductUnit>;
+  deleteProductUnit(id: number): Promise<void>;
+
+  getSessions(userId: string, locationType?: string): Promise<OpnameSession[]>;
   getSession(id: number): Promise<OpnameSessionWithRecords | undefined>;
   createSession(session: InsertOpnameSession): Promise<OpnameSession>;
   completeSession(id: number): Promise<OpnameSession>;
 
-  updateRecord(sessionId: number, productId: number, actualStock: number, notes?: string): Promise<OpnameRecord>;
+  updateRecord(sessionId: number, productId: number, actualStock: number, notes?: string, unitValues?: string): Promise<OpnameRecord>;
   updateRecordPhoto(sessionId: number, productId: number, photoUrl: string): Promise<OpnameRecord>;
+
+  getRecordPhotos(recordId: number): Promise<OpnameRecordPhoto[]>;
+  addRecordPhoto(data: { recordId: number; url: string }): Promise<OpnameRecordPhoto>;
+  deleteRecordPhoto(id: number): Promise<void>;
 
   getUserRole(userId: string): Promise<UserRole | undefined>;
   setUserRole(data: InsertUserRole): Promise<UserRole>;
   getAllUserRoles(): Promise<UserRole[]>;
+
+  getStaffMembers(userId: string): Promise<StaffMember[]>;
+  createStaffMember(data: InsertStaffMember): Promise<StaffMember>;
+  updateStaffMember(id: number, data: Partial<InsertStaffMember>): Promise<StaffMember>;
+  deleteStaffMember(id: number): Promise<void>;
+
+  getAnnouncements(userId: string): Promise<Announcement[]>;
+  createAnnouncement(data: InsertAnnouncement): Promise<Announcement>;
+  updateAnnouncement(id: number, data: Partial<InsertAnnouncement>): Promise<Announcement>;
+  deleteAnnouncement(id: number): Promise<void>;
+
+  getFeedback(userId: string): Promise<Feedback[]>;
+  createFeedback(data: InsertFeedback): Promise<Feedback>;
+  deleteFeedback(id: number): Promise<void>;
+  getAllFeedback(): Promise<Feedback[]>;
+
+  getMotivationMessages(userId: string): Promise<MotivationMessage[]>;
+  createMotivationMessage(data: InsertMotivationMessage): Promise<MotivationMessage>;
+  updateMotivationMessage(id: number, data: Partial<InsertMotivationMessage>): Promise<MotivationMessage>;
+  deleteMotivationMessage(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
-  async getProducts(userId: string): Promise<Product[]> {
+  async getProducts(userId: string, locationType?: string): Promise<Product[]> {
+    if (locationType) {
+      return await db.select().from(products).where(and(eq(products.userId, userId), eq(products.locationType, locationType))).orderBy(products.sku);
+    }
     return await db.select().from(products).where(eq(products.userId, userId)).orderBy(products.sku);
   }
 
@@ -53,7 +100,53 @@ export class DatabaseStorage implements IStorage {
     await db.delete(products).where(eq(products.id, id));
   }
 
-  async getSessions(userId: string): Promise<OpnameSession[]> {
+  async getProductsWithPhotosAndUnits(userId: string): Promise<ProductWithPhotosAndUnits[]> {
+    const result = await db.query.products.findMany({
+      where: eq(products.userId, userId),
+      with: {
+        photos: true,
+        units: true,
+      },
+      orderBy: products.sku,
+    });
+    return result;
+  }
+
+  async getProductPhotos(productId: number): Promise<ProductPhoto[]> {
+    return await db.select().from(productPhotos).where(eq(productPhotos.productId, productId));
+  }
+
+  async addProductPhoto(data: InsertProductPhoto): Promise<ProductPhoto> {
+    const [photo] = await db.insert(productPhotos).values(data).returning();
+    return photo;
+  }
+
+  async deleteProductPhoto(id: number): Promise<void> {
+    await db.delete(productPhotos).where(eq(productPhotos.id, id));
+  }
+
+  async getProductUnits(productId: number): Promise<ProductUnit[]> {
+    return await db.select().from(productUnits).where(eq(productUnits.productId, productId)).orderBy(productUnits.sortOrder);
+  }
+
+  async addProductUnit(data: InsertProductUnit): Promise<ProductUnit> {
+    const [unit] = await db.insert(productUnits).values(data).returning();
+    return unit;
+  }
+
+  async updateProductUnit(id: number, data: Partial<InsertProductUnit>): Promise<ProductUnit> {
+    const [unit] = await db.update(productUnits).set(data).where(eq(productUnits.id, id)).returning();
+    return unit;
+  }
+
+  async deleteProductUnit(id: number): Promise<void> {
+    await db.delete(productUnits).where(eq(productUnits.id, id));
+  }
+
+  async getSessions(userId: string, locationType?: string): Promise<OpnameSession[]> {
+    if (locationType) {
+      return await db.select().from(opnameSessions).where(and(eq(opnameSessions.userId, userId), eq(opnameSessions.locationType, locationType))).orderBy(desc(opnameSessions.startedAt));
+    }
     return await db.select().from(opnameSessions).where(eq(opnameSessions.userId, userId)).orderBy(desc(opnameSessions.startedAt));
   }
 
@@ -64,7 +157,13 @@ export class DatabaseStorage implements IStorage {
     const records = await db.query.opnameRecords.findMany({
       where: eq(opnameRecords.sessionId, id),
       with: {
-        product: true
+        product: {
+          with: {
+            photos: true,
+            units: true,
+          },
+        },
+        photos: true,
       },
       orderBy: desc(opnameRecords.id)
     });
@@ -75,7 +174,8 @@ export class DatabaseStorage implements IStorage {
   async createSession(insertSession: InsertOpnameSession): Promise<OpnameSession> {
     const [session] = await db.insert(opnameSessions).values(insertSession).returning();
 
-    const allProducts = await this.getProducts(insertSession.userId);
+    const sessionLocationType = insertSession.locationType;
+    const allProducts = await this.getProducts(insertSession.userId, sessionLocationType ?? undefined);
     if (allProducts.length > 0) {
       const recordsToInsert = allProducts.map(p => ({
         sessionId: session.id,
@@ -106,14 +206,19 @@ export class DatabaseStorage implements IStorage {
     return session;
   }
 
-  async updateRecord(sessionId: number, productId: number, actualStock: number, notes?: string): Promise<OpnameRecord> {
+  async updateRecord(sessionId: number, productId: number, actualStock: number, notes?: string, unitValues?: string): Promise<OpnameRecord> {
     const [existing] = await db.select().from(opnameRecords).where(
       and(eq(opnameRecords.sessionId, sessionId), eq(opnameRecords.productId, productId))
     );
 
+    const updateData: Record<string, unknown> = { actualStock, notes };
+    if (unitValues !== undefined) {
+      updateData.unitValues = unitValues;
+    }
+
     if (existing) {
       const [updated] = await db.update(opnameRecords)
-        .set({ actualStock, notes })
+        .set(updateData)
         .where(eq(opnameRecords.id, existing.id))
         .returning();
       return updated;
@@ -122,7 +227,8 @@ export class DatabaseStorage implements IStorage {
         sessionId,
         productId,
         actualStock,
-        notes
+        notes,
+        unitValues
       }).returning();
       return created;
     }
@@ -149,6 +255,19 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getRecordPhotos(recordId: number): Promise<OpnameRecordPhoto[]> {
+    return await db.select().from(opnameRecordPhotos).where(eq(opnameRecordPhotos.recordId, recordId));
+  }
+
+  async addRecordPhoto(data: { recordId: number; url: string }): Promise<OpnameRecordPhoto> {
+    const [photo] = await db.insert(opnameRecordPhotos).values(data).returning();
+    return photo;
+  }
+
+  async deleteRecordPhoto(id: number): Promise<void> {
+    await db.delete(opnameRecordPhotos).where(eq(opnameRecordPhotos.id, id));
+  }
+
   async getUserRole(userId: string): Promise<UserRole | undefined> {
     const [role] = await db.select().from(userRoles).where(eq(userRoles.userId, userId));
     return role;
@@ -169,6 +288,77 @@ export class DatabaseStorage implements IStorage {
 
   async getAllUserRoles(): Promise<UserRole[]> {
     return await db.select().from(userRoles);
+  }
+
+  async getStaffMembers(userId: string): Promise<StaffMember[]> {
+    return await db.select().from(staffMembers).where(eq(staffMembers.userId, userId));
+  }
+
+  async createStaffMember(data: InsertStaffMember): Promise<StaffMember> {
+    const [member] = await db.insert(staffMembers).values(data).returning();
+    return member;
+  }
+
+  async updateStaffMember(id: number, data: Partial<InsertStaffMember>): Promise<StaffMember> {
+    const [member] = await db.update(staffMembers).set(data).where(eq(staffMembers.id, id)).returning();
+    return member;
+  }
+
+  async deleteStaffMember(id: number): Promise<void> {
+    await db.delete(staffMembers).where(eq(staffMembers.id, id));
+  }
+
+  async getAnnouncements(userId: string): Promise<Announcement[]> {
+    return await db.select().from(announcements).where(eq(announcements.userId, userId)).orderBy(desc(announcements.createdAt));
+  }
+
+  async createAnnouncement(data: InsertAnnouncement): Promise<Announcement> {
+    const [announcement] = await db.insert(announcements).values(data).returning();
+    return announcement;
+  }
+
+  async updateAnnouncement(id: number, data: Partial<InsertAnnouncement>): Promise<Announcement> {
+    const [announcement] = await db.update(announcements).set(data).where(eq(announcements.id, id)).returning();
+    return announcement;
+  }
+
+  async deleteAnnouncement(id: number): Promise<void> {
+    await db.delete(announcements).where(eq(announcements.id, id));
+  }
+
+  async getFeedback(userId: string): Promise<Feedback[]> {
+    return await db.select().from(feedback).where(eq(feedback.userId, userId)).orderBy(desc(feedback.createdAt));
+  }
+
+  async createFeedback(data: InsertFeedback): Promise<Feedback> {
+    const [fb] = await db.insert(feedback).values(data).returning();
+    return fb;
+  }
+
+  async deleteFeedback(id: number): Promise<void> {
+    await db.delete(feedback).where(eq(feedback.id, id));
+  }
+
+  async getAllFeedback(): Promise<Feedback[]> {
+    return await db.select().from(feedback).orderBy(desc(feedback.createdAt));
+  }
+
+  async getMotivationMessages(userId: string): Promise<MotivationMessage[]> {
+    return await db.select().from(motivationMessages).where(eq(motivationMessages.userId, userId));
+  }
+
+  async createMotivationMessage(data: InsertMotivationMessage): Promise<MotivationMessage> {
+    const [msg] = await db.insert(motivationMessages).values(data).returning();
+    return msg;
+  }
+
+  async updateMotivationMessage(id: number, data: Partial<InsertMotivationMessage>): Promise<MotivationMessage> {
+    const [msg] = await db.update(motivationMessages).set(data).where(eq(motivationMessages.id, id)).returning();
+    return msg;
+  }
+
+  async deleteMotivationMessage(id: number): Promise<void> {
+    await db.delete(motivationMessages).where(eq(motivationMessages.id, id));
   }
 }
 

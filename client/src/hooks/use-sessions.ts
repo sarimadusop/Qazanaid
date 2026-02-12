@@ -4,11 +4,15 @@ import { type OpnameSession, type OpnameSessionWithRecords } from "@shared/schem
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
-export function useSessions() {
+export function useSessions(locationType?: string) {
+  const path = locationType
+    ? `${api.sessions.list.path}?locationType=${encodeURIComponent(locationType)}`
+    : api.sessions.list.path;
+
   return useQuery<OpnameSession[]>({
-    queryKey: [api.sessions.list.path],
+    queryKey: [api.sessions.list.path, locationType],
     queryFn: async () => {
-      const res = await fetch(api.sessions.list.path, { credentials: "include" });
+      const res = await fetch(path, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch sessions");
       return res.json();
     },
@@ -33,7 +37,7 @@ export function useCreateSession() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (data: { title: string; notes?: string | null; status?: string }) => {
+    mutationFn: async (data: { title: string; notes?: string | null; status?: string; locationType?: string; startedByName?: string; assignedTo?: string }) => {
       const res = await fetch(api.sessions.create.path, {
         method: api.sessions.create.method,
         headers: { "Content-Type": "application/json" },
@@ -78,12 +82,12 @@ export function useUpdateRecord() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async ({ sessionId, productId, actualStock, notes }: { sessionId: number; productId: number; actualStock: number; notes?: string }) => {
+    mutationFn: async ({ sessionId, productId, actualStock, notes, unitValues }: { sessionId: number; productId: number; actualStock: number; notes?: string; unitValues?: string }) => {
       const url = buildUrl(api.records.update.path, { sessionId });
       const res = await fetch(url, {
         method: api.records.update.method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, actualStock, notes }),
+        body: JSON.stringify({ productId, actualStock, notes, unitValues }),
         credentials: "include",
       });
 
@@ -122,6 +126,56 @@ export function useUploadOpnamePhoto() {
     onSuccess: (_, { sessionId }) => {
       queryClient.invalidateQueries({ queryKey: [api.sessions.get.path, sessionId] });
       toast({ title: "Foto Berhasil Diupload", description: "Foto opname sudah tersimpan." });
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
+export function useUploadRecordPhoto() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ sessionId, productId, file }: { sessionId: number; productId: number; file: File }) => {
+      const url = buildUrl(api.recordPhotos.upload.path, { sessionId, productId });
+      const formData = new FormData();
+      formData.append("photo", file);
+      const res = await fetch(url, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Upload failed");
+      }
+      return res.json();
+    },
+    onSuccess: (_, { sessionId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.sessions.get.path, sessionId] });
+      toast({ title: "Foto Berhasil Diupload", description: "Foto record sudah tersimpan." });
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
+export function useDeleteRecordPhoto() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ sessionId, productId, photoId }: { sessionId: number; productId: number; photoId: number }) => {
+      const url = buildUrl(api.recordPhotos.delete.path, { sessionId, productId, photoId });
+      const res = await fetch(url, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed to delete photo");
+    },
+    onSuccess: (_, { sessionId }) => {
+      queryClient.invalidateQueries({ queryKey: [api.sessions.get.path, sessionId] });
+      toast({ title: "Foto Dihapus", description: "Foto record sudah dihapus." });
     },
     onError: (error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });

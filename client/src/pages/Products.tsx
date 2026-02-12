@@ -1,32 +1,50 @@
 import { useState, useRef } from "react";
-import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useCategories, useUploadPhoto, useImportExcel, type ExcelImportResult } from "@/hooks/use-products";
+import {
+  useProducts,
+  useCreateProduct,
+  useUpdateProduct,
+  useDeleteProduct,
+  useCategories,
+  useImportExcel,
+  useProductPhotos,
+  useUploadProductPhoto,
+  useDeleteProductPhoto,
+  useProductUnits,
+  useCreateProductUnit,
+  useUpdateProductUnit,
+  useDeleteProductUnit,
+  type ExcelImportResult,
+} from "@/hooks/use-products";
 import { useRole } from "@/hooks/use-role";
 import { api } from "@shared/routes";
-import { Plus, Search, Trash2, Box, Loader2, Upload, ImageIcon, Filter, Download, FileSpreadsheet, CheckCircle2, AlertTriangle, XCircle, Pencil, Save, X } from "lucide-react";
+import type { Product, ProductPhoto, ProductUnit } from "@shared/schema";
+import { insertProductSchema } from "@shared/schema";
+import {
+  Plus, Search, Trash2, Box, Loader2, Upload, ImageIcon, Filter,
+  Download, FileSpreadsheet, CheckCircle2, AlertTriangle, XCircle,
+  Pencil, Save, X, Camera, Package, Layers, Store, Warehouse,
+} from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertProductSchema } from "@shared/schema";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
 export default function Products() {
-  const { data: products, isLoading } = useProducts();
+  const [locationType, setLocationType] = useState<string>("semua");
+  const queryLocationType = locationType === "semua" ? undefined : locationType;
+  const { data: products, isLoading } = useProducts(queryLocationType);
   const { data: categories } = useCategories();
   const { canManageSku } = useRole();
   const [search, setSearch] = useState("");
@@ -35,6 +53,8 @@ export default function Products() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [importResult, setImportResult] = useState<ExcelImportResult | null>(null);
   const [isImportResultOpen, setIsImportResultOpen] = useState(false);
+  const [photosProductId, setPhotosProductId] = useState<number | null>(null);
+  const [unitsProductId, setUnitsProductId] = useState<number | null>(null);
   const importExcel = useImportExcel();
   const excelInputRef = useRef<HTMLInputElement>(null);
 
@@ -51,77 +71,102 @@ export default function Products() {
     }
   };
 
-  const filteredProducts = products?.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
+  const filteredProducts = products?.filter((p) => {
+    const matchesSearch =
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.sku.toLowerCase().includes(search.toLowerCase());
     const matchesCategory = categoryFilter === "all" || p.category === categoryFilter;
     return matchesSearch && matchesCategory;
   });
 
   return (
-    <div className="space-y-8 animate-enter">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Products</h1>
-          <p className="text-muted-foreground mt-2">Manage your inventory catalog and stock levels.</p>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search SKU or Name..."
-              className="pl-9 w-full md:w-64 bg-white"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              data-testid="input-search-products"
-            />
+    <div className="space-y-6 animate-enter">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-display font-bold text-foreground">Produk</h1>
+            <p className="text-muted-foreground mt-1">Kelola katalog inventaris dan stok.</p>
           </div>
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-40 bg-white" data-testid="select-category-filter">
-              <Filter className="w-4 h-4 mr-2 text-muted-foreground" />
-              <SelectValue placeholder="All Categories" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {categories?.map(cat => (
-                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {canManageSku && (
-            <>
-              <Button
-                variant="outline"
-                onClick={() => window.open(api.excel.template.path, "_blank")}
-                data-testid="button-download-template"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Template
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => excelInputRef.current?.click()}
-                disabled={importExcel.isPending}
-                data-testid="button-import-excel"
-              >
-                {importExcel.isPending ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <FileSpreadsheet className="w-4 h-4 mr-2" />
-                )}
-                Import Excel
-              </Button>
-              <input
-                ref={excelInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                className="hidden"
-                onChange={handleExcelUpload}
-                data-testid="input-excel-file"
+          <div className="flex items-center gap-3 flex-wrap">
+            {canManageSku && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(api.excel.template.path, "_blank")}
+                  data-testid="button-download-template"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Template
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => excelInputRef.current?.click()}
+                  disabled={importExcel.isPending}
+                  data-testid="button-import-excel"
+                >
+                  {importExcel.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  )}
+                  Import Excel
+                </Button>
+                <input
+                  ref={excelInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={handleExcelUpload}
+                  data-testid="input-excel-file"
+                />
+                <CreateProductDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} />
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
+          <Tabs value={locationType} onValueChange={setLocationType} data-testid="tabs-location-type">
+            <TabsList>
+              <TabsTrigger value="semua" data-testid="tab-semua">
+                <Package className="w-4 h-4 mr-1.5" />
+                Semua
+              </TabsTrigger>
+              <TabsTrigger value="toko" data-testid="tab-toko">
+                <Store className="w-4 h-4 mr-1.5" />
+                Toko
+              </TabsTrigger>
+              <TabsTrigger value="gudang" data-testid="tab-gudang">
+                <Warehouse className="w-4 h-4 mr-1.5" />
+                Gudang
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <div className="flex items-center gap-3 flex-wrap flex-1">
+            <div className="relative flex-1 min-w-[200px] max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Cari SKU atau Nama..."
+                className="pl-9"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                data-testid="input-search-products"
               />
-              <CreateProductDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} />
-            </>
-          )}
+            </div>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-40" data-testid="select-category-filter">
+                <Filter className="w-4 h-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Semua Kategori" />
+              </SelectTrigger>
+              <SelectContent className="bg-card border border-border">
+                <SelectItem value="all">Semua Kategori</SelectItem>
+                {categories?.map((cat) => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -131,7 +176,20 @@ export default function Products() {
         onOpenChange={setIsImportResultOpen}
       />
 
-      <div className="bg-card border border-border/50 rounded-2xl shadow-sm overflow-hidden">
+      <PhotoGalleryDialog
+        productId={photosProductId}
+        open={photosProductId !== null}
+        onOpenChange={(open) => { if (!open) setPhotosProductId(null); }}
+        canManage={canManageSku}
+      />
+
+      <UnitManagementDialog
+        productId={unitsProductId}
+        open={unitsProductId !== null}
+        onOpenChange={(open) => { if (!open) setUnitsProductId(null); }}
+      />
+
+      <div className="bg-card border border-border rounded-md overflow-hidden">
         {isLoading ? (
           <div className="p-12 flex justify-center">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -139,26 +197,27 @@ export default function Products() {
         ) : filteredProducts?.length === 0 ? (
           <div className="p-16 text-center">
             <Box className="w-16 h-16 mx-auto text-muted-foreground/30 mb-4" />
-            <h3 className="text-lg font-semibold text-foreground">No Products Found</h3>
-            <p className="text-muted-foreground mt-1">Try adjusting your search or add a new product.</p>
+            <h3 className="text-lg font-semibold text-foreground">Tidak Ada Produk</h3>
+            <p className="text-muted-foreground mt-1">Coba ubah pencarian atau tambah produk baru.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="bg-muted/30 border-b border-border/50">
-                  <th className="px-6 py-4 font-medium text-muted-foreground">Photo</th>
-                  <th className="px-6 py-4 font-medium text-muted-foreground">SKU</th>
-                  <th className="px-6 py-4 font-medium text-muted-foreground">Product Name</th>
-                  <th className="px-6 py-4 font-medium text-muted-foreground">Category</th>
-                  <th className="px-6 py-4 font-medium text-muted-foreground text-right">Stock</th>
+                  <th className="px-4 py-3 font-medium text-muted-foreground">Foto</th>
+                  <th className="px-4 py-3 font-medium text-muted-foreground">SKU</th>
+                  <th className="px-4 py-3 font-medium text-muted-foreground">Nama Produk</th>
+                  <th className="px-4 py-3 font-medium text-muted-foreground">Kategori</th>
+                  <th className="px-4 py-3 font-medium text-muted-foreground">Lokasi</th>
+                  <th className="px-4 py-3 font-medium text-muted-foreground text-right">Stok</th>
                   {canManageSku && (
-                    <th className="px-6 py-4 font-medium text-muted-foreground text-right">Actions</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground text-right">Aksi</th>
                   )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
-                {filteredProducts?.map((product) => (
+                {filteredProducts?.map((product) =>
                   editingId === product.id ? (
                     <EditProductRow
                       key={product.id}
@@ -167,37 +226,16 @@ export default function Products() {
                       onSaved={() => setEditingId(null)}
                     />
                   ) : (
-                    <tr key={product.id} className="hover:bg-muted/20 transition-colors group" data-testid={`row-product-${product.id}`}>
-                      <td className="px-6 py-4">
-                        <ProductPhoto productId={product.id} photoUrl={product.photoUrl} canUpload={canManageSku} />
-                      </td>
-                      <td className="px-6 py-4 font-mono font-medium text-foreground">{product.sku}</td>
-                      <td className="px-6 py-4 font-medium text-foreground">{product.name}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{product.category || "-"}</td>
-                      <td className="px-6 py-4 text-right">
-                        <span className={product.currentStock < 10 ? "text-orange-600 font-bold" : "text-foreground"}>
-                          {product.currentStock}
-                        </span>
-                      </td>
-                      {canManageSku && (
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-muted-foreground"
-                              onClick={() => setEditingId(product.id)}
-                              data-testid={`button-edit-product-${product.id}`}
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </Button>
-                            <DeleteProductButton id={product.id} name={product.name} />
-                          </div>
-                        </td>
-                      )}
-                    </tr>
+                    <ProductRow
+                      key={product.id}
+                      product={product}
+                      canManageSku={canManageSku}
+                      onEdit={() => setEditingId(product.id)}
+                      onPhotos={() => setPhotosProductId(product.id)}
+                      onUnits={() => setUnitsProductId(product.id)}
+                    />
                   )
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -207,7 +245,151 @@ export default function Products() {
   );
 }
 
-function EditProductRow({ product, onCancel, onSaved }: { product: any; onCancel: () => void; onSaved: () => void }) {
+function ProductRow({
+  product,
+  canManageSku,
+  onEdit,
+  onPhotos,
+  onUnits,
+}: {
+  product: Product;
+  canManageSku: boolean;
+  onEdit: () => void;
+  onPhotos: () => void;
+  onUnits: () => void;
+}) {
+  const { data: photos } = useProductPhotos(product.id);
+  const { data: units } = useProductUnits(product.id);
+  const photoCount = photos?.length ?? 0;
+  const firstPhoto = photos?.[0];
+  const isGudang = product.locationType === "gudang";
+  const hasUnits = units && units.length > 0;
+
+  return (
+    <tr className="hover:bg-muted/20 transition-colors group" data-testid={`row-product-${product.id}`}>
+      <td className="px-4 py-3">
+        <button
+          onClick={onPhotos}
+          className="relative w-10 h-10 rounded-md overflow-hidden border border-border/50 flex items-center justify-center bg-muted/30"
+          data-testid={`button-photos-${product.id}`}
+        >
+          {firstPhoto ? (
+            <img
+              src={firstPhoto.url}
+              alt=""
+              className="w-10 h-10 object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
+          ) : product.photoUrl ? (
+            <img
+              src={product.photoUrl}
+              alt=""
+              className="w-10 h-10 object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
+          ) : (
+            <ImageIcon className="w-4 h-4 text-muted-foreground/40" />
+          )}
+          {photoCount > 0 && (
+            <Badge className="absolute -top-1.5 -right-1.5 no-default-hover-elevate no-default-active-elevate" variant="secondary">
+              {photoCount}
+            </Badge>
+          )}
+        </button>
+      </td>
+      <td className="px-4 py-3 font-mono font-medium text-foreground">{product.sku}</td>
+      <td className="px-4 py-3">
+        <div className="flex flex-col gap-1">
+          <span className="font-medium text-foreground">{product.name}</span>
+          {isGudang && !hasUnits && (
+            <span className="text-xs text-orange-600 flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" />
+              Unit belum diatur
+            </span>
+          )}
+          {hasUnits && (
+            <span className="text-xs text-muted-foreground">
+              {formatUnitDisplay(units)}
+            </span>
+          )}
+        </div>
+      </td>
+      <td className="px-4 py-3 text-muted-foreground">{product.category || "-"}</td>
+      <td className="px-4 py-3">
+        <Badge variant={isGudang ? "outline" : "secondary"} data-testid={`badge-location-${product.id}`}>
+          {isGudang ? (
+            <><Warehouse className="w-3 h-3 mr-1" />Gudang</>
+          ) : (
+            <><Store className="w-3 h-3 mr-1" />Toko</>
+          )}
+        </Badge>
+      </td>
+      <td className="px-4 py-3 text-right">
+        <span className={product.currentStock < 10 ? "text-orange-600 font-bold" : "text-foreground"}>
+          {product.currentStock}
+        </span>
+      </td>
+      {canManageSku && (
+        <td className="px-4 py-3 text-right">
+          <div className="flex items-center justify-end gap-1">
+            {isGudang && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground"
+                onClick={onUnits}
+                data-testid={`button-units-${product.id}`}
+              >
+                <Layers className="w-4 h-4" />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground"
+              onClick={onPhotos}
+              data-testid={`button-manage-photos-${product.id}`}
+            >
+              <Camera className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground"
+              onClick={onEdit}
+              data-testid={`button-edit-product-${product.id}`}
+            >
+              <Pencil className="w-4 h-4" />
+            </Button>
+            <DeleteProductButton id={product.id} name={product.name} />
+          </div>
+        </td>
+      )}
+    </tr>
+  );
+}
+
+function formatUnitDisplay(units: ProductUnit[]): string {
+  if (!units || units.length === 0) return "";
+  const sorted = [...units].sort((a, b) => a.sortOrder - b.sortOrder);
+  const parts: string[] = [];
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const current = sorted[i];
+    const next = sorted[i + 1];
+    const ratio = current.conversionToBase / next.conversionToBase;
+    parts.push(`1 ${current.unitName} = ${ratio % 1 === 0 ? ratio.toFixed(0) : ratio.toFixed(2)} ${next.unitName}`);
+  }
+  if (sorted.length === 1) {
+    parts.push(`1 ${sorted[0].unitName} = ${sorted[0].conversionToBase} ${sorted[0].baseUnit}`);
+  }
+  return parts.join(", ");
+}
+
+function EditProductRow({ product, onCancel, onSaved }: { product: Product; onCancel: () => void; onSaved: () => void }) {
   const [name, setName] = useState(product.name);
   const [currentStock, setCurrentStock] = useState(product.currentStock);
   const updateProduct = useUpdateProduct();
@@ -221,29 +403,35 @@ function EditProductRow({ product, onCancel, onSaved }: { product: any; onCancel
 
   return (
     <tr className="bg-primary/5" data-testid={`row-edit-product-${product.id}`}>
-      <td className="px-6 py-4">
-        <ProductPhoto productId={product.id} photoUrl={product.photoUrl} canUpload={false} />
+      <td className="px-4 py-3">
+        <div className="w-10 h-10 rounded-md bg-muted/50 flex items-center justify-center">
+          <ImageIcon className="w-4 h-4 text-muted-foreground/40" />
+        </div>
       </td>
-      <td className="px-6 py-4 font-mono font-medium text-foreground">{product.sku}</td>
-      <td className="px-6 py-3">
+      <td className="px-4 py-3 font-mono font-medium text-foreground">{product.sku}</td>
+      <td className="px-4 py-3">
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="bg-white"
           data-testid={`input-edit-name-${product.id}`}
         />
       </td>
-      <td className="px-6 py-4 text-muted-foreground">{product.category || "-"}</td>
-      <td className="px-6 py-3 text-right">
+      <td className="px-4 py-3 text-muted-foreground">{product.category || "-"}</td>
+      <td className="px-4 py-3">
+        <Badge variant={product.locationType === "gudang" ? "outline" : "secondary"}>
+          {product.locationType === "gudang" ? "Gudang" : "Toko"}
+        </Badge>
+      </td>
+      <td className="px-4 py-3 text-right">
         <Input
           type="number"
           value={currentStock}
           onChange={(e) => setCurrentStock(parseInt(e.target.value) || 0)}
-          className="bg-white w-24 ml-auto text-right"
+          className="w-24 ml-auto text-right"
           data-testid={`input-edit-stock-${product.id}`}
         />
       </td>
-      <td className="px-6 py-4 text-right">
+      <td className="px-4 py-3 text-right">
         <div className="flex items-center justify-end gap-1">
           <Button
             variant="ghost"
@@ -268,64 +456,6 @@ function EditProductRow({ product, onCancel, onSaved }: { product: any; onCancel
   );
 }
 
-function ProductPhoto({ productId, photoUrl, canUpload }: { productId: number; photoUrl: string | null; canUpload: boolean }) {
-  const uploadPhoto = useUploadPhoto();
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      uploadPhoto.mutate({ productId, file });
-    }
-  };
-
-  if (photoUrl) {
-    return (
-      <div className="relative group/photo w-10 h-10">
-        <img src={photoUrl} alt="" className="w-10 h-10 rounded-lg object-cover border border-border/50" />
-        {canUpload && (
-          <>
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity"
-              data-testid={`button-reupload-photo-${productId}`}
-            >
-              <Upload className="w-4 h-4 text-white" />
-            </button>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
-          </>
-        )}
-      </div>
-    );
-  }
-
-  if (!canUpload) {
-    return (
-      <div className="w-10 h-10 rounded-lg bg-muted/50 flex items-center justify-center">
-        <ImageIcon className="w-4 h-4 text-muted-foreground/40" />
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <button
-        onClick={() => fileRef.current?.click()}
-        className="w-10 h-10 rounded-lg border border-dashed border-border bg-muted/20 flex items-center justify-center hover:bg-muted/40 transition-colors"
-        disabled={uploadPhoto.isPending}
-        data-testid={`button-upload-photo-${productId}`}
-      >
-        {uploadPhoto.isPending ? (
-          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-        ) : (
-          <Upload className="w-4 h-4 text-muted-foreground" />
-        )}
-      </button>
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
-    </div>
-  );
-}
-
 const createFormSchema = insertProductSchema.omit({ userId: true, photoUrl: true });
 
 function CreateProductDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -339,6 +469,7 @@ function CreateProductDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       category: "",
       description: "",
       currentStock: 0,
+      locationType: "toko",
     },
   });
 
@@ -356,12 +487,12 @@ function CreateProductDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       <DialogTrigger asChild>
         <Button data-testid="button-add-product">
           <Plus className="w-4 h-4 mr-2" />
-          Add Product
+          Tambah Produk
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Add New Product</DialogTitle>
+          <DialogTitle>Tambah Produk Baru</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
@@ -373,7 +504,7 @@ function CreateProductDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                   <FormItem>
                     <FormLabel>SKU</FormLabel>
                     <FormControl>
-                      <Input placeholder="E.g. ITEM-001" {...field} data-testid="input-sku" />
+                      <Input placeholder="Cth: ITEM-001" {...field} data-testid="input-sku" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -384,9 +515,9 @@ function CreateProductDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                 name="category"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Category</FormLabel>
+                    <FormLabel>Kategori</FormLabel>
                     <FormControl>
-                      <Input placeholder="Electronics" {...field} value={field.value || ""} data-testid="input-category" />
+                      <Input placeholder="Elektronik" {...field} value={field.value || ""} data-testid="input-category" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -399,42 +530,65 @@ function CreateProductDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Product Name</FormLabel>
+                  <FormLabel>Nama Produk</FormLabel>
                   <FormControl>
-                    <Input placeholder="Wireless Headphones" {...field} data-testid="input-product-name" />
+                    <Input placeholder="Headphone Wireless" {...field} data-testid="input-product-name" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="currentStock"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Initial Stock</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      {...field}
-                      onChange={e => field.onChange(parseInt(e.target.value) || 0)}
-                      data-testid="input-initial-stock"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="currentStock"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Stok Awal</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        {...field}
+                        onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                        data-testid="input-initial-stock"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="locationType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Lokasi</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value || "toko"}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-location-type">
+                          <SelectValue placeholder="Pilih Lokasi" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="bg-card border border-border">
+                        <SelectItem value="toko">Toko</SelectItem>
+                        <SelectItem value="gudang">Gudang</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description (Optional)</FormLabel>
+                  <FormLabel>Deskripsi (Opsional)</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Details about the product..." {...field} value={field.value || ""} data-testid="input-description" />
+                    <Textarea placeholder="Detail tentang produk..." {...field} value={field.value || ""} data-testid="input-description" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -442,14 +596,348 @@ function CreateProductDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             />
 
             <div className="flex justify-end gap-3 pt-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
               <Button type="submit" disabled={createProduct.isPending} data-testid="button-submit-product">
                 {createProduct.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Create Product
+                Buat Produk
               </Button>
             </div>
           </form>
         </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PhotoGalleryDialog({
+  productId,
+  open,
+  onOpenChange,
+  canManage,
+}: {
+  productId: number | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  canManage: boolean;
+}) {
+  const { data: photos, isLoading } = useProductPhotos(productId ?? 0);
+  const uploadPhoto = useUploadProductPhoto();
+  const deletePhoto = useDeleteProductPhoto();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || !productId) return;
+    Array.from(files).forEach((file) => {
+      uploadPhoto.mutate({ productId, file });
+    });
+    e.target.value = "";
+  };
+
+  return (
+    <>
+      <Dialog open={open && !viewingPhoto} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Foto Produk</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            {isLoading ? (
+              <div className="flex justify-center p-8">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-3">
+                {photos?.map((photo: ProductPhoto) => (
+                  <div key={photo.id} className="relative group/photo aspect-square rounded-md overflow-hidden border border-border/50 bg-muted/30">
+                    <img
+                      src={photo.url}
+                      alt=""
+                      className="w-full h-full object-cover cursor-pointer"
+                      onClick={() => setViewingPhoto(photo.url)}
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                        const parent = e.currentTarget.parentElement;
+                        if (parent) {
+                          const placeholder = parent.querySelector(".photo-placeholder");
+                          if (placeholder) (placeholder as HTMLElement).style.display = "flex";
+                        }
+                      }}
+                      data-testid={`img-photo-${photo.id}`}
+                    />
+                    <div className="photo-placeholder hidden w-full h-full items-center justify-center absolute inset-0">
+                      <ImageIcon className="w-8 h-8 text-muted-foreground/40" />
+                    </div>
+                    {canManage && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-1 right-1 bg-background/80 opacity-0 group-hover/photo:opacity-100 transition-opacity"
+                        onClick={() => productId && deletePhoto.mutate({ productId, photoId: photo.id })}
+                        data-testid={`button-delete-photo-${photo.id}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                {canManage && (
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="aspect-square rounded-md border border-dashed border-border flex flex-col items-center justify-center gap-2 hover:bg-muted/40 transition-colors"
+                    disabled={uploadPhoto.isPending}
+                    data-testid="button-upload-new-photo"
+                  >
+                    {uploadPhoto.isPending ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                    ) : (
+                      <>
+                        <Upload className="w-5 h-5 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">Tambah Foto</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            )}
+            {(!photos || photos.length === 0) && !isLoading && (
+              <p className="text-sm text-muted-foreground text-center py-4">Belum ada foto untuk produk ini.</p>
+            )}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleUpload}
+              data-testid="input-upload-photos"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!viewingPhoto} onOpenChange={() => setViewingPhoto(null)}>
+        <DialogContent className="sm:max-w-[800px] p-2">
+          {viewingPhoto && (
+            <img
+              src={viewingPhoto}
+              alt=""
+              className="w-full h-auto max-h-[80vh] object-contain rounded-md"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+              data-testid="img-photo-fullsize"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function UnitManagementDialog({
+  productId,
+  open,
+  onOpenChange,
+}: {
+  productId: number | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { data: units, isLoading } = useProductUnits(productId ?? 0);
+  const createUnit = useCreateProductUnit();
+  const updateUnit = useUpdateProductUnit();
+  const deleteUnit = useDeleteProductUnit();
+  const [newUnitName, setNewUnitName] = useState("");
+  const [newConversionQty, setNewConversionQty] = useState("");
+  const [newBaseUnit, setNewBaseUnit] = useState("");
+  const [editingUnitId, setEditingUnitId] = useState<number | null>(null);
+  const [editUnitName, setEditUnitName] = useState("");
+  const [editConversionQty, setEditConversionQty] = useState("");
+  const [editBaseUnit, setEditBaseUnit] = useState("");
+
+  const handleAddUnit = () => {
+    if (!productId || !newUnitName.trim() || !newConversionQty) return;
+    const sortOrder = units ? units.length : 0;
+    createUnit.mutate(
+      {
+        productId,
+        unitName: newUnitName.trim(),
+        conversionToBase: parseFloat(newConversionQty) || 1,
+        baseUnit: newBaseUnit.trim() || "pcs",
+        sortOrder,
+      },
+      {
+        onSuccess: () => {
+          setNewUnitName("");
+          setNewConversionQty("");
+          setNewBaseUnit("");
+        },
+      }
+    );
+  };
+
+  const handleUpdateUnit = (unitId: number) => {
+    if (!productId) return;
+    updateUnit.mutate(
+      {
+        productId,
+        unitId,
+        unitName: editUnitName.trim() || undefined,
+        conversionToBase: parseFloat(editConversionQty) || undefined,
+        baseUnit: editBaseUnit.trim() || undefined,
+      },
+      {
+        onSuccess: () => setEditingUnitId(null),
+      }
+    );
+  };
+
+  const startEditing = (unit: ProductUnit) => {
+    setEditingUnitId(unit.id);
+    setEditUnitName(unit.unitName);
+    setEditConversionQty(String(unit.conversionToBase));
+    setEditBaseUnit(unit.baseUnit);
+  };
+
+  const sortedUnits = units ? [...units].sort((a: ProductUnit, b: ProductUnit) => a.sortOrder - b.sortOrder) : [];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Kelola Unit</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          {isLoading ? (
+            <div className="flex justify-center p-6">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <>
+              {sortedUnits.length > 0 && (
+                <div className="text-sm text-muted-foreground bg-muted/30 p-3 rounded-md" data-testid="text-unit-display">
+                  {formatUnitDisplay(sortedUnits)}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                {sortedUnits.map((unit: ProductUnit) => (
+                  <div key={unit.id} className="flex items-center gap-2 p-2 rounded-md border border-border/50">
+                    {editingUnitId === unit.id ? (
+                      <>
+                        <Input
+                          value={editUnitName}
+                          onChange={(e) => setEditUnitName(e.target.value)}
+                          className="flex-1"
+                          placeholder="Nama unit"
+                          data-testid={`input-edit-unit-name-${unit.id}`}
+                        />
+                        <Input
+                          type="number"
+                          value={editConversionQty}
+                          onChange={(e) => setEditConversionQty(e.target.value)}
+                          className="w-20"
+                          placeholder="Konversi"
+                          data-testid={`input-edit-unit-conv-${unit.id}`}
+                        />
+                        <Input
+                          value={editBaseUnit}
+                          onChange={(e) => setEditBaseUnit(e.target.value)}
+                          className="w-20"
+                          placeholder="Satuan"
+                          data-testid={`input-edit-unit-base-${unit.id}`}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleUpdateUnit(unit.id)}
+                          disabled={updateUnit.isPending}
+                          data-testid={`button-save-unit-${unit.id}`}
+                        >
+                          <Save className="w-4 h-4 text-green-600" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditingUnitId(null)}
+                          data-testid={`button-cancel-unit-${unit.id}`}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex-1">
+                          <span className="font-medium">{unit.unitName}</span>
+                          <span className="text-muted-foreground ml-2 text-xs">
+                            ({unit.conversionToBase} {unit.baseUnit})
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => startEditing(unit)}
+                          data-testid={`button-edit-unit-${unit.id}`}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => productId && deleteUnit.mutate({ productId, unitId: unit.id })}
+                          data-testid={`button-delete-unit-${unit.id}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-end gap-2 pt-2 border-t border-border/50 flex-wrap">
+                <div className="flex-1 min-w-[100px]">
+                  <label className="text-xs text-muted-foreground mb-1 block">Nama Unit</label>
+                  <Input
+                    value={newUnitName}
+                    onChange={(e) => setNewUnitName(e.target.value)}
+                    placeholder="Cth: Dus"
+                    data-testid="input-new-unit-name"
+                  />
+                </div>
+                <div className="w-20">
+                  <label className="text-xs text-muted-foreground mb-1 block">Konversi</label>
+                  <Input
+                    type="number"
+                    value={newConversionQty}
+                    onChange={(e) => setNewConversionQty(e.target.value)}
+                    placeholder="Qty"
+                    data-testid="input-new-unit-conversion"
+                  />
+                </div>
+                <div className="w-20">
+                  <label className="text-xs text-muted-foreground mb-1 block">Satuan Dasar</label>
+                  <Input
+                    value={newBaseUnit}
+                    onChange={(e) => setNewBaseUnit(e.target.value)}
+                    placeholder="Pack"
+                    data-testid="input-new-unit-base"
+                  />
+                </div>
+                <Button
+                  onClick={handleAddUnit}
+                  disabled={createUnit.isPending || !newUnitName.trim()}
+                  data-testid="button-add-unit"
+                >
+                  {createUnit.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4 mr-1" />}
+                  Tambah
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -487,7 +975,7 @@ function ImportResultDialog({ result, open, onOpenChange }: { result: ExcelImpor
               <h4 className="text-sm font-medium text-muted-foreground">Detail Error:</h4>
               <div className="max-h-48 overflow-y-auto space-y-1">
                 {result.errors.map((err, i) => (
-                  <div key={i} className="flex items-start gap-2 text-sm p-2 rounded bg-muted/50" data-testid={`text-import-error-${i}`}>
+                  <div key={i} className="flex items-start gap-2 text-sm p-2 rounded-md bg-muted/50" data-testid={`text-import-error-${i}`}>
                     <XCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
                     <span>
                       <strong>Baris {err.row}:</strong> {err.message}
@@ -519,19 +1007,19 @@ function DeleteProductButton({ id, name }: { id: number; name: string }) {
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Product?</AlertDialogTitle>
+          <AlertDialogTitle>Hapus Produk?</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete <strong>{name}</strong>? This action cannot be undone.
+            Apakah Anda yakin ingin menghapus <strong>{name}</strong>? Tindakan ini tidak dapat dibatalkan.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>Batal</AlertDialogCancel>
           <AlertDialogAction
             className="bg-destructive"
             onClick={() => deleteProduct.mutate(id)}
             data-testid="button-confirm-delete"
           >
-            Delete
+            Hapus
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

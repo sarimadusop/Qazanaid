@@ -1,18 +1,21 @@
-import { useSession, useUpdateRecord, useCompleteSession, useUploadOpnamePhoto } from "@/hooks/use-sessions";
+import { useSession, useUpdateRecord, useCompleteSession, useUploadOpnamePhoto, useUploadRecordPhoto, useDeleteRecordPhoto } from "@/hooks/use-sessions";
 import { useCategories } from "@/hooks/use-products";
 import { useRole } from "@/hooks/use-role";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, CheckCircle2, Download, Search, Loader2, Filter, Camera, Image, X, FileArchive } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, Search, Loader2, Filter, Camera, Image, X, FileArchive, Trash2, Plus, Printer, MapPin, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/StatusBadge";
-import { useState, useMemo, useRef } from "react";
-import { cn } from "@/lib/utils";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { cn, compressImage } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { useToast } from "@/hooks/use-toast";
 import { buildUrl } from "@shared/routes";
 import { api } from "@shared/routes";
+import type { OpnameRecordWithProduct, ProductUnit } from "@shared/schema";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +32,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 
 export default function SessionDetail() {
@@ -41,6 +45,7 @@ export default function SessionDetail() {
   const completeSession = useCompleteSession();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [completionDialogOpen, setCompletionDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const isCompleted = session?.status === "completed";
@@ -56,7 +61,15 @@ export default function SessionDetail() {
   }, [session?.records, search, categoryFilter]);
 
   const hasPhotos = useMemo(() => {
-    return session?.records?.some(r => r.photoUrl) ?? false;
+    return session?.records?.some(r => r.photoUrl || (r.photos && r.photos.length > 0)) ?? false;
+  }, [session?.records]);
+
+  const stats = useMemo(() => {
+    if (!session?.records) return { total: 0, counted: 0, progress: 0 };
+    const total = session.records.length;
+    const counted = session.records.filter(r => r.actualStock !== null).length;
+    const progress = total > 0 ? Math.round((counted / total) * 100) : 0;
+    return { total, counted, progress };
   }, [session?.records]);
 
   const exportToExcel = () => {
@@ -87,7 +100,15 @@ export default function SessionDetail() {
   };
 
   const handleComplete = () => {
-    completeSession.mutate(sessionId);
+    completeSession.mutate(sessionId, {
+      onSuccess: () => {
+        setCompletionDialogOpen(true);
+      }
+    });
+  };
+
+  const printSummary = () => {
+    window.print();
   };
 
   if (isLoading) return <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -104,10 +125,28 @@ export default function SessionDetail() {
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-display font-bold text-foreground" data-testid="text-session-title">{session.title}</h1>
               <StatusBadge status={session.status} />
+              {session.locationType && (
+                <Badge variant="outline" data-testid="badge-location-type">
+                  <MapPin className="w-3 h-3 mr-1" />
+                  {session.locationType === "gudang" ? "Gudang" : "Toko"}
+                </Badge>
+              )}
             </div>
-            <p className="text-sm text-muted-foreground mt-1">
-              Started on {new Date(session.startedAt).toLocaleDateString()} | {records.length} items
-            </p>
+            <div className="flex items-center gap-3 flex-wrap mt-1">
+              <p className="text-sm text-muted-foreground">
+                Started on {new Date(session.startedAt).toLocaleDateString()} | {records.length} items
+              </p>
+              {session.assignedTo && (
+                <span className="text-sm text-muted-foreground flex items-center gap-1" data-testid="text-assigned-staff">
+                  <User className="w-3 h-3" />
+                  {session.assignedTo}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3 mt-2">
+              <Progress value={stats.progress} className="w-40 h-2" data-testid="progress-session" />
+              <span className="text-xs text-muted-foreground" data-testid="text-progress">{stats.counted}/{stats.total} dihitung ({stats.progress}%)</span>
+            </div>
           </div>
         </div>
 
@@ -139,6 +178,20 @@ export default function SessionDetail() {
                     This will mark the session as completed. Ensure all counts are entered correctly.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
+                <div className="py-3 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total Produk</span>
+                    <span className="font-medium">{stats.total}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Sudah Dihitung</span>
+                    <span className="font-medium">{stats.counted}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Belum Dihitung</span>
+                    <span className="font-medium text-amber-600">{stats.total - stats.counted}</span>
+                  </div>
+                </div>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction onClick={handleComplete} className="bg-emerald-600" data-testid="button-confirm-finalize">
@@ -167,7 +220,7 @@ export default function SessionDetail() {
             <Filter className="w-4 h-4 mr-2 text-muted-foreground" />
             <SelectValue placeholder="All Categories" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-card border border-border">
             <SelectItem value="all">All Categories</SelectItem>
             {categories?.map(cat => (
               <SelectItem key={cat} value={cat}>{cat}</SelectItem>
@@ -182,10 +235,10 @@ export default function SessionDetail() {
             <thead className="bg-muted/30 border-b border-border/50">
               <tr>
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[15%]">SKU</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[25%]">Product</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[12%]">Category</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[20%] text-center">Actual Count</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[18%] text-center">Foto</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[20%]">Product</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[10%]">Category</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[22%] text-center">Actual Count</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[23%] text-center">Foto</th>
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[10%]">Status</th>
               </tr>
             </thead>
@@ -196,29 +249,137 @@ export default function SessionDetail() {
                   record={record}
                   sessionId={sessionId}
                   readOnly={isCompleted || !canCount}
-                  canUploadPhoto={true}
+                  isGudang={session.locationType === "gudang"}
                 />
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      <Dialog open={completionDialogOpen} onOpenChange={setCompletionDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Session Selesai</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+              <div>
+                <p className="font-medium text-foreground">Stock opname telah selesai</p>
+                <p className="text-sm text-muted-foreground">{session.title}</p>
+              </div>
+            </div>
+
+            <div className="space-y-2 text-sm border-t pt-3">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total Produk</span>
+                <span className="font-medium" data-testid="text-summary-total">{stats.total}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Sudah Dihitung</span>
+                <span className="font-medium" data-testid="text-summary-counted">{stats.counted}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Belum Dihitung</span>
+                <span className="font-medium text-amber-600" data-testid="text-summary-uncounted">{stats.total - stats.counted}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 pt-2">
+              {hasPhotos && (
+                <Button variant="outline" onClick={downloadPhotosZip} className="w-full" data-testid="button-completion-download-zip">
+                  <FileArchive className="w-4 h-4 mr-2" />
+                  Download Foto ZIP
+                </Button>
+              )}
+              <Button variant="outline" onClick={exportToExcel} className="w-full" data-testid="button-completion-export">
+                <Download className="w-4 h-4 mr-2" />
+                Export Excel
+              </Button>
+              <Button variant="outline" onClick={printSummary} className="w-full" data-testid="button-completion-print">
+                <Printer className="w-4 h-4 mr-2" />
+                Print Summary
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setCompletionDialogOpen(false)} data-testid="button-completion-close">
+              Tutup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function RecordRow({ record, sessionId, readOnly, canUploadPhoto }: { record: any; sessionId: number; readOnly: boolean; canUploadPhoto: boolean }) {
+function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRecordWithProduct; sessionId: number; readOnly: boolean; isGudang: boolean }) {
   const updateRecord = useUpdateRecord();
-  const uploadPhoto = useUploadOpnamePhoto();
+  const uploadPhoto = useUploadRecordPhoto();
+  const deletePhoto = useDeleteRecordPhoto();
+  const uploadLegacyPhoto = useUploadOpnamePhoto();
   const [actual, setActual] = useState(record.actualStock?.toString() ?? "");
   const [isFocused, setIsFocused] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const productUnits = record.product.units ?? [];
+  const hasUnits = isGudang && productUnits.length > 0;
+
+  const parseExistingUnitValues = useCallback((): Record<string, number> => {
+    if (!record.unitValues) return {};
+    try {
+      return JSON.parse(record.unitValues);
+    } catch {
+      return {};
+    }
+  }, [record.unitValues]);
+
+  const [unitInputs, setUnitInputs] = useState<Record<string, string>>(() => {
+    const existing = parseExistingUnitValues();
+    const result: Record<string, string> = {};
+    productUnits.forEach(u => {
+      result[u.unitName] = existing[u.unitName]?.toString() ?? "";
+    });
+    return result;
+  });
+
+  useEffect(() => {
+    if (hasUnits) {
+      const existing = parseExistingUnitValues();
+      const result: Record<string, string> = {};
+      productUnits.forEach(u => {
+        result[u.unitName] = existing[u.unitName]?.toString() ?? "";
+      });
+      setUnitInputs(result);
+    }
+  }, [record.unitValues, hasUnits]);
+
+  const computedTotal = useMemo(() => {
+    if (!hasUnits) return 0;
+    let total = 0;
+    productUnits.forEach(u => {
+      const val = parseFloat(unitInputs[u.unitName] || "0");
+      if (!isNaN(val)) {
+        total += val * u.conversionToBase;
+      }
+    });
+    return Math.round(total);
+  }, [unitInputs, productUnits, hasUnits]);
+
+  const baseUnitName = useMemo(() => {
+    if (productUnits.length > 0) return productUnits[0].baseUnit;
+    return "pcs";
+  }, [productUnits]);
+
+  const allPhotos = record.photos ?? [];
 
   const handleBlur = () => {
     setIsFocused(false);
+    if (hasUnits) return;
     const val = parseInt(actual);
-
     if (!isNaN(val) && val !== record.actualStock) {
       updateRecord.mutate({
         sessionId,
@@ -228,20 +389,66 @@ function RecordRow({ record, sessionId, readOnly, canUploadPhoto }: { record: an
     }
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUnitBlur = () => {
+    setIsFocused(false);
+    const unitValues: Record<string, number> = {};
+    let anyFilled = false;
+    productUnits.forEach(u => {
+      const val = parseFloat(unitInputs[u.unitName] || "0");
+      if (!isNaN(val) && val > 0) {
+        unitValues[u.unitName] = val;
+        anyFilled = true;
+      }
+    });
+
+    if (anyFilled) {
+      updateRecord.mutate({
+        sessionId,
+        productId: record.productId,
+        actualStock: computedTotal,
+        unitValues: JSON.stringify(unitValues),
+      });
+    }
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    uploadPhoto.mutate({
-      sessionId,
-      productId: record.productId,
-      file,
-    });
+    try {
+      const compressed = await compressImage(file);
+      uploadPhoto.mutate({
+        sessionId,
+        productId: record.productId,
+        file: compressed,
+      });
+    } catch {
+      uploadPhoto.mutate({
+        sessionId,
+        productId: record.productId,
+        file,
+      });
+    }
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
+
+  const handleDeletePhoto = (photoId: number) => {
+    deletePhoto.mutate({
+      sessionId,
+      productId: record.productId,
+      photoId,
+    });
+  };
+
+  const openLightbox = (index: number) => {
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+  };
+
+  const formatNumber = (n: number) => n.toLocaleString("id-ID");
 
   return (
     <>
@@ -251,8 +458,41 @@ function RecordRow({ record, sessionId, readOnly, canUploadPhoto }: { record: an
         <td className="px-6 py-4 text-muted-foreground">{record.product.category || "-"}</td>
         <td className="px-6 py-3">
           {readOnly ? (
-            <div className="text-center font-bold text-foreground py-2 px-3 bg-muted/20 rounded-lg">
-              {record.actualStock ?? "-"}
+            <div className="text-center">
+              <div className="font-bold text-foreground py-2 px-3 bg-muted/20 rounded-lg">
+                {record.actualStock !== null ? formatNumber(record.actualStock) : "-"}
+              </div>
+              {hasUnits && record.unitValues && (
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {Object.entries(parseExistingUnitValues()).map(([name, val]) => (
+                    <span key={name} className="mr-2">{val} {name}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : hasUnits ? (
+            <div className="space-y-1">
+              <div className="flex flex-col gap-1">
+                {productUnits.map(u => (
+                  <div key={u.id} className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      className="w-20 text-center text-sm"
+                      placeholder="0"
+                      value={unitInputs[u.unitName] || ""}
+                      onChange={(e) => setUnitInputs(prev => ({ ...prev, [u.unitName]: e.target.value }))}
+                      onFocus={() => setIsFocused(true)}
+                      onBlur={handleUnitBlur}
+                      disabled={updateRecord.isPending}
+                      data-testid={`input-unit-${record.productId}-${u.unitName}`}
+                    />
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">{u.unitName}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="text-xs text-muted-foreground text-center" data-testid={`text-total-${record.productId}`}>
+                Total: {formatNumber(computedTotal)} {baseUnitName}
+              </div>
             </div>
           ) : (
             <div className="flex justify-center">
@@ -274,28 +514,56 @@ function RecordRow({ record, sessionId, readOnly, canUploadPhoto }: { record: an
           )}
         </td>
         <td className="px-6 py-3">
-          <div className="flex items-center justify-center gap-2">
-            {record.photoUrl ? (
+          <div className="flex items-center justify-center gap-1 flex-wrap">
+            {allPhotos.length > 0 ? (
+              allPhotos.map((photo, idx) => (
+                <div key={photo.id} className="relative group">
+                  <button
+                    onClick={() => openLightbox(idx)}
+                    className="cursor-pointer"
+                    data-testid={`button-view-photo-${record.productId}-${photo.id}`}
+                  >
+                    <img
+                      src={photo.url}
+                      alt={`Foto ${record.product.name} ${idx + 1}`}
+                      className="w-9 h-9 rounded-md object-cover border border-border/50"
+                    />
+                    <div className="absolute inset-0 bg-black/40 rounded-md opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <Image className="w-3 h-3 text-white" />
+                    </div>
+                  </button>
+                  {!readOnly && (
+                    <button
+                      onClick={() => handleDeletePhoto(photo.id)}
+                      className="absolute -top-1 -right-1 w-4 h-4 bg-destructive text-white rounded-full flex items-center justify-center invisible group-hover:visible"
+                      data-testid={`button-delete-photo-${record.productId}-${photo.id}`}
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                </div>
+              ))
+            ) : record.photoUrl ? (
               <button
-                onClick={() => setPreviewOpen(true)}
+                onClick={() => { setLightboxIndex(0); setLightboxOpen(true); }}
                 className="relative group cursor-pointer"
                 data-testid={`button-view-photo-${record.productId}`}
               >
                 <img
                   src={record.photoUrl}
                   alt={`Foto ${record.product.name}`}
-                  className="w-10 h-10 rounded-md object-cover border border-border/50"
+                  className="w-9 h-9 rounded-md object-cover border border-border/50"
                 />
                 <div className="absolute inset-0 bg-black/40 rounded-md opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <Image className="w-4 h-4 text-white" />
+                  <Image className="w-3 h-3 text-white" />
                 </div>
               </button>
             ) : (
-              <div className="w-10 h-10 rounded-md border border-dashed border-border/50 flex items-center justify-center text-muted-foreground/30">
+              <div className="w-9 h-9 rounded-md border border-dashed border-border/50 flex items-center justify-center text-muted-foreground/30">
                 <Camera className="w-4 h-4" />
               </div>
             )}
-            {canUploadPhoto && (
+            {!readOnly && (
               <>
                 <input
                   type="file"
@@ -315,7 +583,7 @@ function RecordRow({ record, sessionId, readOnly, canUploadPhoto }: { record: an
                   {uploadPhoto.isPending ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
-                    <Camera className="w-4 h-4" />
+                    <Plus className="w-4 h-4" />
                   )}
                 </Button>
               </>
@@ -331,19 +599,45 @@ function RecordRow({ record, sessionId, readOnly, canUploadPhoto }: { record: an
         </td>
       </tr>
 
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Foto Opname - {record.product.name}</DialogTitle>
           </DialogHeader>
-          {record.photoUrl && (
+          {allPhotos.length > 0 ? (
+            <div className="space-y-3">
+              <img
+                src={allPhotos[lightboxIndex]?.url}
+                alt={`Foto ${record.product.name}`}
+                className="w-full rounded-lg object-contain max-h-[60vh]"
+                data-testid={`img-preview-${record.productId}`}
+              />
+              {allPhotos.length > 1 && (
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  {allPhotos.map((photo, idx) => (
+                    <button
+                      key={photo.id}
+                      onClick={() => setLightboxIndex(idx)}
+                      className={cn(
+                        "w-12 h-12 rounded-md object-cover border-2 overflow-hidden cursor-pointer",
+                        idx === lightboxIndex ? "border-primary" : "border-border/50"
+                      )}
+                      data-testid={`button-lightbox-thumb-${photo.id}`}
+                    >
+                      <img src={photo.url} alt="" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : record.photoUrl ? (
             <img
               src={record.photoUrl}
               alt={`Foto ${record.product.name}`}
               className="w-full rounded-lg object-contain max-h-[60vh]"
               data-testid={`img-preview-${record.productId}`}
             />
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
     </>
