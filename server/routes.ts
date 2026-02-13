@@ -759,7 +759,8 @@ export async function registerRoutes(
       const ext = path.extname(file.originalname).toLowerCase() || ".jpg";
       const safeName = `announcement_${id}_${Date.now()}${ext}`;
       const destPath = path.join(uploadsDir, safeName);
-      fs.renameSync(file.path, destPath);
+      fs.copyFileSync(file.path, destPath);
+      fs.unlinkSync(file.path);
 
       const url = `/uploads/${safeName}`;
       const announcement = await storage.updateAnnouncement(id, { imageUrl: url });
