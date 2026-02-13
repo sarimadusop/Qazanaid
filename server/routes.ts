@@ -12,7 +12,7 @@ import { authStorage } from "./replit_integrations/auth/storage";
 import archiver from "archiver";
 import { productPhotos, opnameRecordPhotos } from "@shared/schema";
 import { db } from "./db";
-import { lt } from "drizzle-orm";
+
 
 const upload = multer({ dest: "/tmp/uploads", limits: { fileSize: 10 * 1024 * 1024 } });
 const uploadsDir = path.join(process.cwd(), "uploads");
@@ -52,31 +52,6 @@ function requireRole(...roles: string[]) {
   };
 }
 
-// === Auto-delete: cleanup photos older than 7 days ===
-async function cleanupOldPhotos() {
-  try {
-    ensureUploadsDir();
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-
-    const files = fs.readdirSync(uploadsDir);
-    for (const file of files) {
-      const filePath = path.join(uploadsDir, file);
-      try {
-        const stat = fs.statSync(filePath);
-        if (stat.isFile() && stat.mtime < sevenDaysAgo) {
-          fs.unlinkSync(filePath);
-          console.log(`Cleaned up old photo: ${file}`);
-        }
-      } catch {}
-    }
-
-    await db.delete(productPhotos).where(lt(productPhotos.createdAt, sevenDaysAgo));
-    await db.delete(opnameRecordPhotos).where(lt(opnameRecordPhotos.createdAt, sevenDaysAgo));
-    console.log("Photo cleanup completed");
-  } catch (err) {
-    console.error("Photo cleanup error:", err);
-  }
-}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -87,7 +62,6 @@ export async function registerRoutes(
   registerAuthRoutes(app);
 
   ensureUploadsDir();
-  cleanupOldPhotos();
 
   // === Roles ===
   app.get(api.roles.me.path, isAuthenticated, async (req, res) => {
