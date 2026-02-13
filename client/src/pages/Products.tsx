@@ -44,6 +44,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
   AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Products() {
   const [locationType, setLocationType] = useState<string>("semua");
@@ -564,6 +565,12 @@ const createFormSchema = insertProductSchema.omit({ userId: true, photoUrl: true
 
 function CreateProductDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const createProduct = useCreateProduct();
+  const uploadPhoto = useUploadProductPhoto();
+  const { toast } = useToast();
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<z.infer<typeof createFormSchema>>({
     resolver: zodResolver(createFormSchema),
@@ -577,17 +584,66 @@ function CreateProductDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     },
   });
 
-  const onSubmit = (data: z.infer<typeof createFormSchema>) => {
+  const handleSelectPhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    const newFiles = Array.from(files);
+    setSelectedFiles((prev) => [...prev, ...newFiles]);
+    newFiles.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setPreviews((prev) => [...prev, ev.target?.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    setPreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const resetForm = () => {
+    form.reset();
+    setSelectedFiles([]);
+    setPreviews([]);
+    setIsUploading(false);
+  };
+
+  const onSubmit = async (data: z.infer<typeof createFormSchema>) => {
+    setIsUploading(true);
     createProduct.mutate(data, {
-      onSuccess: () => {
+      onSuccess: async (newProduct: Product) => {
+        if (selectedFiles.length > 0) {
+          const { compressImage } = await import("@/lib/utils");
+          let failCount = 0;
+          for (const file of selectedFiles) {
+            try {
+              const compressed = await compressImage(file);
+              await uploadPhoto.mutateAsync({ productId: newProduct.id, file: compressed });
+            } catch {
+              failCount++;
+            }
+          }
+          if (failCount > 0) {
+            toast({ title: "Peringatan", description: `${failCount} foto gagal diupload. Anda bisa upload ulang dari galeri produk.`, variant: "destructive" });
+          }
+        }
+        setIsUploading(false);
         onOpenChange(false);
-        form.reset();
+        resetForm();
+      },
+      onError: () => {
+        setIsUploading(false);
       },
     });
   };
 
+  const isBusy = createProduct.isPending || isUploading;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); onOpenChange(v); }}>
       <DialogTrigger asChild>
         <Button data-testid="button-add-product">
           <Plus className="w-4 h-4 mr-2" />
@@ -699,11 +755,58 @@ function CreateProductDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               )}
             />
 
+            <div>
+              <FormLabel>Foto Produk (Opsional)</FormLabel>
+              <div className="mt-2 space-y-3">
+                {previews.length > 0 && (
+                  <div className="grid grid-cols-4 gap-2">
+                    {previews.map((src, i) => (
+                      <div key={i} className="relative aspect-square rounded-md overflow-hidden border border-border/50 bg-muted/30 group/preview">
+                        <img src={src} alt="" className="w-full h-full object-cover" />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute top-0.5 right-0.5 invisible group-hover/preview:visible"
+                          onClick={() => removeFile(i)}
+                          data-testid={`button-remove-preview-${i}`}
+                        >
+                          <X className="w-3 h-3 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={isBusy}
+                  data-testid="button-select-photos"
+                >
+                  <Camera className="w-4 h-4 mr-2" />
+                  {selectedFiles.length > 0
+                    ? `${selectedFiles.length} foto dipilih - Tambah lagi`
+                    : "Pilih Foto"}
+                </Button>
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleSelectPhotos}
+                  data-testid="input-select-photos"
+                />
+              </div>
+            </div>
+
             <div className="flex justify-end gap-3 pt-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
-              <Button type="submit" disabled={createProduct.isPending} data-testid="button-submit-product">
-                {createProduct.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Buat Produk
+              <Button type="button" variant="outline" onClick={() => { resetForm(); onOpenChange(false); }}>Batal</Button>
+              <Button type="submit" disabled={isBusy} data-testid="button-submit-product">
+                {isBusy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {isUploading ? "Mengupload foto..." : "Buat Produk"}
               </Button>
             </div>
           </form>
