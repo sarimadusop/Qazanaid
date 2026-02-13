@@ -161,6 +161,10 @@ export const api = {
       method: 'POST' as const,
       path: '/api/excel/import' as const,
     },
+    export: {
+      method: 'GET' as const,
+      path: '/api/excel/export' as const,
+    },
   },
   staff: {
     list: {
