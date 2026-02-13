@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   useProducts,
   useCreateProduct,
@@ -1207,11 +1207,12 @@ function CategoryPriorityDialog({ open, onOpenChange, categories }: {
   onOpenChange: (open: boolean) => void;
   categories: string[];
 }) {
-  const { data: priorities } = useCategoryPriorities();
+  const { data: priorities, isLoading } = useCategoryPriorities();
   const setCategoryPriorities = useSetCategoryPriorities();
   const [orderedCategories, setOrderedCategories] = useState<string[]>([]);
 
-  const initOrder = () => {
+  useEffect(() => {
+    if (!open || categories.length === 0) return;
     if (priorities && priorities.length > 0) {
       const priorityMap = new Map(priorities.map(p => [p.categoryName, p.sortOrder]));
       const sorted = [...categories].sort((a, b) => {
@@ -1220,10 +1221,10 @@ function CategoryPriorityDialog({ open, onOpenChange, categories }: {
         return aPriority - bPriority;
       });
       setOrderedCategories(sorted);
-    } else {
+    } else if (!isLoading) {
       setOrderedCategories([...categories]);
     }
-  };
+  }, [open, categories, priorities, isLoading]);
 
   const moveUp = (index: number) => {
     if (index === 0) return;
@@ -1250,14 +1251,18 @@ function CategoryPriorityDialog({ open, onOpenChange, categories }: {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (v) initOrder(); onOpenChange(v); }}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Urutan Prioritas Kategori</DialogTitle>
         </DialogHeader>
         <div className="space-y-2 py-2">
           <p className="text-sm text-muted-foreground">Atur urutan prioritas kategori. Kategori di atas akan ditampilkan lebih dulu.</p>
-          {orderedCategories.length === 0 ? (
+          {isLoading ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : orderedCategories.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">Tidak ada kategori</p>
           ) : (
             <div className="space-y-1 max-h-80 overflow-y-auto">

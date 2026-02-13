@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sidebar } from "@/components/Sidebar";
 import { useAuth } from "@/hooks/use-auth";
+import { useAnnouncements } from "@/hooks/use-announcements";
 import Dashboard from "@/pages/Dashboard";
 import Products from "@/pages/Products";
 import Sessions from "@/pages/Sessions";
@@ -17,11 +18,13 @@ import Announcements from "@/pages/Announcements";
 import FeedbackPage from "@/pages/FeedbackPage";
 import MotivationPage from "@/pages/MotivationPage";
 import NotFound from "@/pages/not-found";
-import { Loader2, Package, AlertCircle, Info } from "lucide-react";
+import { Loader2, Package, AlertCircle, Info, Megaphone, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import type { Announcement } from "@shared/schema";
 
 function LoginPage() {
   const { login, register, loginError, registerError, isLoggingIn, isRegistering } = useAuth();
@@ -192,6 +195,115 @@ function LoginPage() {
   );
 }
 
+function AnnouncementPopup() {
+  const { data: announcements } = useAnnouncements();
+  const [open, setOpen] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [activeAnnouncements, setActiveAnnouncements] = useState<Announcement[]>([]);
+
+  useEffect(() => {
+    if (!announcements || announcements.length === 0) return;
+
+    const now = new Date();
+    const active = (announcements as Announcement[]).filter((a) => {
+      if (a.expiresAt && new Date(a.expiresAt) < now) return false;
+      return true;
+    });
+
+    if (active.length === 0) return;
+
+    const dismissedRaw = localStorage.getItem("dismissed_announcements");
+    const dismissed: Record<string, string> = dismissedRaw ? JSON.parse(dismissedRaw) : {};
+
+    const unread = active.filter((a) => {
+      const dismissedAt = dismissed[String(a.id)];
+      if (!dismissedAt) return true;
+      return new Date(a.createdAt) > new Date(dismissedAt);
+    });
+
+    if (unread.length > 0) {
+      setActiveAnnouncements(unread);
+      setCurrentIndex(0);
+      setOpen(true);
+    }
+  }, [announcements]);
+
+  const dismissAll = useCallback(() => {
+    const dismissedRaw = localStorage.getItem("dismissed_announcements");
+    const dismissed: Record<string, string> = dismissedRaw ? JSON.parse(dismissedRaw) : {};
+    const now = new Date().toISOString();
+    activeAnnouncements.forEach((a) => {
+      dismissed[String(a.id)] = now;
+    });
+    localStorage.setItem("dismissed_announcements", JSON.stringify(dismissed));
+    setOpen(false);
+  }, [activeAnnouncements]);
+
+  if (activeAnnouncements.length === 0) return null;
+
+  const current = activeAnnouncements[currentIndex];
+  if (!current) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) dismissAll(); }}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="bg-primary/10 p-2 rounded-lg">
+              <Megaphone className="w-5 h-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <DialogTitle className="text-lg">{current.title}</DialogTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {new Date(current.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+              </p>
+            </div>
+            {activeAnnouncements.length > 1 && (
+              <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate shrink-0" data-testid="badge-announcement-count">
+                {currentIndex + 1}/{activeAnnouncements.length}
+              </Badge>
+            )}
+          </div>
+        </DialogHeader>
+        <div className="py-3">
+          <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed" data-testid="text-announcement-content">
+            {current.content}
+          </p>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1">
+            {activeAnnouncements.length > 1 && (
+              <>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+                  disabled={currentIndex === 0}
+                  data-testid="button-prev-announcement"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCurrentIndex((i) => Math.min(activeAnnouncements.length - 1, i + 1))}
+                  disabled={currentIndex === activeAnnouncements.length - 1}
+                  data-testid="button-next-announcement"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </>
+            )}
+          </div>
+          <Button onClick={dismissAll} data-testid="button-dismiss-announcements">
+            Mengerti
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AuthenticatedApp() {
   return (
     <div className="min-h-screen bg-muted/10 flex flex-col lg:flex-row">
@@ -213,6 +325,7 @@ function AuthenticatedApp() {
           </Switch>
         </div>
       </main>
+      <AnnouncementPopup />
     </div>
   );
 }
