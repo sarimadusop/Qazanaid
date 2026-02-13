@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 
-const createFormSchema = insertAnnouncementSchema.extend({
+const createFormSchema = insertAnnouncementSchema.omit({ userId: true }).extend({
   expiresAt: z.string().optional().nullable(),
 });
 

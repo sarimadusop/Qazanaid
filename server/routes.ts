@@ -853,16 +853,22 @@ export async function registerRoutes(
 
   // === Category Priorities ===
   app.get(api.categoryPriorities.list.path, isAuthenticated, async (req, res) => {
-    const adminId = await getTeamAdminId(req);
-    const priorities = await storage.getCategoryPriorities(adminId);
+    const userId = getUserId(req);
+    let priorities = await storage.getCategoryPriorities(userId);
+    if (priorities.length === 0) {
+      const adminId = await getTeamAdminId(req);
+      if (adminId !== userId) {
+        priorities = await storage.getCategoryPriorities(adminId);
+      }
+    }
     res.json(priorities);
   });
 
-  app.post(api.categoryPriorities.set.path, isAuthenticated, requireRole("admin"), async (req, res) => {
+  app.post(api.categoryPriorities.set.path, isAuthenticated, async (req, res) => {
     try {
-      const adminId = await getTeamAdminId(req);
+      const userId = getUserId(req);
       const { priorities } = req.body as { priorities: { categoryName: string; sortOrder: number }[] };
-      const result = await storage.setCategoryPriorities(adminId, priorities || []);
+      const result = await storage.setCategoryPriorities(userId, priorities || []);
       res.json(result);
     } catch (err) {
       console.error("Set category priorities error:", err);

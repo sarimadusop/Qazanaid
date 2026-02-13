@@ -219,12 +219,10 @@ export default function Products() {
                 ))}
               </SelectContent>
             </Select>
-            {isAdmin && (
-              <Button variant="outline" size="sm" onClick={() => setCategoryPriorityOpen(true)} data-testid="button-category-priority">
-                <ListOrdered className="w-4 h-4 mr-2" />
-                Urutan Kategori
-              </Button>
-            )}
+            <Button variant="outline" size="sm" onClick={() => setCategoryPriorityOpen(true)} data-testid="button-category-priority">
+              <ListOrdered className="w-4 h-4 mr-2" />
+              Urutan Kategori
+            </Button>
           </div>
         </div>
       </div>
