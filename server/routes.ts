@@ -904,13 +904,13 @@ export async function registerRoutes(
   // === Excel Template & Import ===
   app.get(api.excel.template.path, isAuthenticated, requireRole("admin", "sku_manager"), (req, res) => {
     const wb = XLSX.utils.book_new();
-    const headers = ["SKU", "Nama Produk", "Kategori", "Deskripsi", "Stok Awal"];
+    const headers = ["SKU", "Nama Produk", "Kategori", "Deskripsi", "Stok Awal", "Lokasi", "Satuan"];
     const exampleRows = [
-      ["ITEM-001", "Contoh Produk", "Elektronik", "Deskripsi produk", 10],
-      ["ITEM-002", "Produk Kedua", "Makanan", "", 25],
+      ["ITEM-001", "Contoh Produk", "Elektronik", "Deskripsi produk", 10, "toko", "pcs"],
+      ["ITEM-002", "Produk Kedua", "Makanan", "", 25, "gudang", "dus, pack, pcs"],
     ];
     const ws = XLSX.utils.aoa_to_sheet([headers, ...exampleRows]);
-    ws["!cols"] = [{ wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 30 }, { wch: 12 }];
+    ws["!cols"] = [{ wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 30 }, { wch: 12 }, { wch: 10 }, { wch: 20 }];
     XLSX.utils.book_append_sheet(wb, ws, "Template Produk");
     const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
     res.setHeader("Content-Disposition", "attachment; filename=template_produk.xlsx");
@@ -953,6 +953,9 @@ export async function registerRoutes(
         const category = String(row[2] || "").trim() || null;
         const description = String(row[3] || "").trim() || null;
         const currentStock = parseInt(String(row[4] || "0"), 10);
+        const locationRaw = String(row[5] || "").trim().toLowerCase();
+        const locationType = locationRaw === "gudang" ? "gudang" : "toko";
+        const satuanRaw = String(row[6] || "").trim();
 
         if (!sku) {
           errors.push({ row: i + 1, message: "SKU wajib diisi" });
@@ -979,7 +982,7 @@ export async function registerRoutes(
         }
 
         try {
-          await storage.createProduct({
+          const product = await storage.createProduct({
             sku,
             name,
             category,
@@ -987,8 +990,23 @@ export async function registerRoutes(
             currentStock,
             photoUrl: null,
             userId: adminId,
+            locationType,
           });
           existingSkus.add(sku.toLowerCase());
+
+          if (satuanRaw) {
+            const unitNames = satuanRaw.split(",").map(s => s.trim()).filter(Boolean);
+            for (let j = 0; j < unitNames.length; j++) {
+              await storage.createProductUnit({
+                productId: product.id,
+                unitName: unitNames[j],
+                conversionToBase: 1,
+                baseUnit: unitNames[j],
+                sortOrder: j,
+              });
+            }
+          }
+
           imported++;
         } catch (err) {
           errors.push({ row: i + 1, message: "Gagal menyimpan produk" });
@@ -1000,6 +1018,38 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Excel import error:", err);
       res.status(500).json({ message: "Gagal memproses file Excel" });
+    }
+  });
+
+  app.get(api.excel.export.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
+    try {
+      const adminId = await getTeamAdminId(req);
+      const productsWithUnits = await storage.getProductsWithPhotosAndUnits(adminId);
+
+      const wb = XLSX.utils.book_new();
+      const headers = ["SKU", "Nama Produk", "Kategori", "Deskripsi", "Stok", "Lokasi", "Satuan"];
+      const rows = productsWithUnits.map(p => [
+        p.sku,
+        p.name,
+        p.category || "",
+        p.description || "",
+        p.currentStock,
+        p.locationType || "toko",
+        p.units && p.units.length > 0
+          ? p.units.sort((a, b) => a.sortOrder - b.sortOrder).map(u => u.unitName).join(", ")
+          : "",
+      ]);
+
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      ws["!cols"] = [{ wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 30 }, { wch: 12 }, { wch: 10 }, { wch: 20 }];
+      XLSX.utils.book_append_sheet(wb, ws, "Produk");
+      const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+      res.setHeader("Content-Disposition", "attachment; filename=produk_export.xlsx");
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.send(buf);
+    } catch (err) {
+      console.error("Excel export error:", err);
+      res.status(500).json({ message: "Gagal export Excel" });
     }
   });
 

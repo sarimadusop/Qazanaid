@@ -46,13 +46,21 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 
+function getDefaultProductTab(role: string): string {
+  if (role === "stock_counter_toko") return "toko";
+  if (role === "stock_counter_gudang") return "gudang";
+  return "semua";
+}
+
 export default function Products() {
-  const [locationType, setLocationType] = useState<string>("semua");
+  const { canManageSku, isAdmin, canCountToko, canCountGudang, role } = useRole();
+  const defaultTab = getDefaultProductTab(role);
+  const [locationType, setLocationType] = useState<string>(defaultTab);
   const queryLocationType = locationType === "semua" ? undefined : locationType;
   const { data: products, isLoading } = useProducts(queryLocationType);
   const { data: categories } = useCategories();
   const { data: categoryPriorities } = useCategoryPriorities();
-  const { canManageSku, isAdmin } = useRole();
+  const showAllTabs = role === "admin" || role === "sku_manager" || role === "stock_counter";
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -164,6 +172,14 @@ export default function Products() {
                   )}
                   Import Excel
                 </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(api.excel.export.path, "_blank")}
+                  data-testid="button-export-excel"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export Excel
+                </Button>
                 <input
                   ref={excelInputRef}
                   type="file"
@@ -181,18 +197,24 @@ export default function Products() {
         <div className="flex flex-col md:flex-row md:items-center gap-3">
           <Tabs value={locationType} onValueChange={setLocationType} data-testid="tabs-location-type">
             <TabsList>
-              <TabsTrigger value="semua" data-testid="tab-semua">
-                <Package className="w-4 h-4 mr-1.5" />
-                Semua
-              </TabsTrigger>
-              <TabsTrigger value="toko" data-testid="tab-toko">
-                <Store className="w-4 h-4 mr-1.5" />
-                Toko
-              </TabsTrigger>
-              <TabsTrigger value="gudang" data-testid="tab-gudang">
-                <Warehouse className="w-4 h-4 mr-1.5" />
-                Gudang
-              </TabsTrigger>
+              {showAllTabs && (
+                <TabsTrigger value="semua" data-testid="tab-semua">
+                  <Package className="w-4 h-4 mr-1.5" />
+                  Semua
+                </TabsTrigger>
+              )}
+              {canCountToko && (
+                <TabsTrigger value="toko" data-testid="tab-toko">
+                  <Store className="w-4 h-4 mr-1.5" />
+                  Toko
+                </TabsTrigger>
+              )}
+              {canCountGudang && (
+                <TabsTrigger value="gudang" data-testid="tab-gudang">
+                  <Warehouse className="w-4 h-4 mr-1.5" />
+                  Gudang
+                </TabsTrigger>
+              )}
             </TabsList>
           </Tabs>
 
@@ -353,7 +375,6 @@ function ProductRow({
   const { data: units } = useProductUnits(product.id);
   const photoCount = photos?.length ?? 0;
   const firstPhoto = photos?.[0];
-  const isGudang = product.locationType === "gudang";
   const hasUnits = units && units.length > 0;
 
   return (
@@ -407,12 +428,6 @@ function ProductRow({
       <td className="px-4 py-3">
         <div className="flex flex-col gap-1">
           <span className="font-medium text-foreground">{product.name}</span>
-          {isGudang && !hasUnits && (
-            <span className="text-xs text-orange-600 flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" />
-              Unit belum diatur
-            </span>
-          )}
           {hasUnits && (
             <span className="text-xs text-muted-foreground">
               {formatUnitDisplay(units)}
@@ -422,8 +437,8 @@ function ProductRow({
       </td>
       <td className="px-4 py-3 text-muted-foreground">{product.category || "-"}</td>
       <td className="px-4 py-3">
-        <Badge variant={isGudang ? "outline" : "secondary"} data-testid={`badge-location-${product.id}`}>
-          {isGudang ? (
+        <Badge variant={product.locationType === "gudang" ? "outline" : "secondary"} data-testid={`badge-location-${product.id}`}>
+          {product.locationType === "gudang" ? (
             <><Warehouse className="w-3 h-3 mr-1" />Gudang</>
           ) : (
             <><Store className="w-3 h-3 mr-1" />Toko</>
@@ -438,17 +453,15 @@ function ProductRow({
       {canManageSku && (
         <td className="px-4 py-3 text-right">
           <div className="flex items-center justify-end gap-1">
-            {isGudang && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground"
-                onClick={onUnits}
-                data-testid={`button-units-${product.id}`}
-              >
-                <Layers className="w-4 h-4" />
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground"
+              onClick={onUnits}
+              data-testid={`button-units-${product.id}`}
+            >
+              <Layers className="w-4 h-4" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -478,17 +491,7 @@ function ProductRow({
 function formatUnitDisplay(units: ProductUnit[]): string {
   if (!units || units.length === 0) return "";
   const sorted = [...units].sort((a, b) => a.sortOrder - b.sortOrder);
-  const parts: string[] = [];
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const current = sorted[i];
-    const next = sorted[i + 1];
-    const ratio = current.conversionToBase / next.conversionToBase;
-    parts.push(`1 ${current.unitName} = ${ratio % 1 === 0 ? ratio.toFixed(0) : ratio.toFixed(2)} ${next.unitName}`);
-  }
-  if (sorted.length === 1) {
-    parts.push(`1 ${sorted[0].unitName} = ${sorted[0].conversionToBase} ${sorted[0].baseUnit}`);
-  }
-  return parts.join(", ");
+  return sorted.map(u => u.unitName).join(", ");
 }
 
 function EditProductRow({ product, onCancel, onSaved }: { product: Product; onCancel: () => void; onSaved: () => void }) {
@@ -955,29 +958,23 @@ function UnitManagementDialog({
   const updateUnit = useUpdateProductUnit();
   const deleteUnit = useDeleteProductUnit();
   const [newUnitName, setNewUnitName] = useState("");
-  const [newConversionQty, setNewConversionQty] = useState("");
-  const [newBaseUnit, setNewBaseUnit] = useState("");
   const [editingUnitId, setEditingUnitId] = useState<number | null>(null);
   const [editUnitName, setEditUnitName] = useState("");
-  const [editConversionQty, setEditConversionQty] = useState("");
-  const [editBaseUnit, setEditBaseUnit] = useState("");
 
   const handleAddUnit = () => {
-    if (!productId || !newUnitName.trim() || !newConversionQty) return;
+    if (!productId || !newUnitName.trim()) return;
     const sortOrder = units ? units.length : 0;
     createUnit.mutate(
       {
         productId,
         unitName: newUnitName.trim(),
-        conversionToBase: parseFloat(newConversionQty) || 1,
-        baseUnit: newBaseUnit.trim() || "pcs",
+        conversionToBase: 1,
+        baseUnit: newUnitName.trim(),
         sortOrder,
       },
       {
         onSuccess: () => {
           setNewUnitName("");
-          setNewConversionQty("");
-          setNewBaseUnit("");
         },
       }
     );
@@ -990,8 +987,7 @@ function UnitManagementDialog({
         productId,
         unitId,
         unitName: editUnitName.trim() || undefined,
-        conversionToBase: parseFloat(editConversionQty) || undefined,
-        baseUnit: editBaseUnit.trim() || undefined,
+        baseUnit: editUnitName.trim() || undefined,
       },
       {
         onSuccess: () => setEditingUnitId(null),
@@ -1002,8 +998,6 @@ function UnitManagementDialog({
   const startEditing = (unit: ProductUnit) => {
     setEditingUnitId(unit.id);
     setEditUnitName(unit.unitName);
-    setEditConversionQty(String(unit.conversionToBase));
-    setEditBaseUnit(unit.baseUnit);
   };
 
   const sortedUnits = units ? [...units].sort((a: ProductUnit, b: ProductUnit) => a.sortOrder - b.sortOrder) : [];
@@ -1036,23 +1030,8 @@ function UnitManagementDialog({
                           value={editUnitName}
                           onChange={(e) => setEditUnitName(e.target.value)}
                           className="flex-1"
-                          placeholder="Nama unit"
+                          placeholder="Nama satuan"
                           data-testid={`input-edit-unit-name-${unit.id}`}
-                        />
-                        <Input
-                          type="number"
-                          value={editConversionQty}
-                          onChange={(e) => setEditConversionQty(e.target.value)}
-                          className="w-20"
-                          placeholder="Konversi"
-                          data-testid={`input-edit-unit-conv-${unit.id}`}
-                        />
-                        <Input
-                          value={editBaseUnit}
-                          onChange={(e) => setEditBaseUnit(e.target.value)}
-                          className="w-20"
-                          placeholder="Satuan"
-                          data-testid={`input-edit-unit-base-${unit.id}`}
                         />
                         <Button
                           variant="ghost"
@@ -1076,9 +1055,6 @@ function UnitManagementDialog({
                       <>
                         <div className="flex-1">
                           <span className="font-medium">{unit.unitName}</span>
-                          <span className="text-muted-foreground ml-2 text-xs">
-                            ({unit.conversionToBase} {unit.baseUnit})
-                          </span>
                         </div>
                         <Button
                           variant="ghost"
@@ -1104,31 +1080,12 @@ function UnitManagementDialog({
 
               <div className="flex items-end gap-2 pt-2 border-t border-border/50 flex-wrap">
                 <div className="flex-1 min-w-[100px]">
-                  <label className="text-xs text-muted-foreground mb-1 block">Nama Unit</label>
+                  <label className="text-xs text-muted-foreground mb-1 block">Nama Satuan</label>
                   <Input
                     value={newUnitName}
                     onChange={(e) => setNewUnitName(e.target.value)}
-                    placeholder="Cth: Dus"
+                    placeholder="Cth: Dus, Pack, Pcs, Kg"
                     data-testid="input-new-unit-name"
-                  />
-                </div>
-                <div className="w-20">
-                  <label className="text-xs text-muted-foreground mb-1 block">Konversi</label>
-                  <Input
-                    type="number"
-                    value={newConversionQty}
-                    onChange={(e) => setNewConversionQty(e.target.value)}
-                    placeholder="Qty"
-                    data-testid="input-new-unit-conversion"
-                  />
-                </div>
-                <div className="w-20">
-                  <label className="text-xs text-muted-foreground mb-1 block">Satuan Dasar</label>
-                  <Input
-                    value={newBaseUnit}
-                    onChange={(e) => setNewBaseUnit(e.target.value)}
-                    placeholder="Pack"
-                    data-testid="input-new-unit-base"
                   />
                 </div>
                 <Button
