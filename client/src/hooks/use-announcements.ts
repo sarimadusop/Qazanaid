@@ -38,7 +38,7 @@ export function useUpdateAnnouncement() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async ({ id, ...data }: { id: number; title?: string; content?: string; expiresAt?: string }) => {
+    mutationFn: async ({ id, ...data }: { id: number; title?: string; content?: string; expiresAt?: string; imageUrl?: string | null }) => {
       const url = buildUrl(api.announcements.update.path, { id });
       const res = await apiRequest("PUT", url, data);
       return res.json();
@@ -46,6 +46,29 @@ export function useUpdateAnnouncement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.announcements.list.path] });
       toast({ title: "Announcement Updated", description: "Announcement has been updated." });
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
+export function useUploadAnnouncementImage() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ id, file }: { id: number; file: File }) => {
+      const url = buildUrl(api.announcements.uploadImage.path, { id });
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await fetch(url, { method: "POST", body: formData, credentials: "include" });
+      if (!res.ok) throw new Error("Failed to upload image");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.announcements.list.path] });
+      toast({ title: "Gambar Diunggah", description: "Gambar pengumuman berhasil diunggah." });
     },
     onError: (error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });

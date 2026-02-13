@@ -265,7 +265,17 @@ function AnnouncementPopup() {
             )}
           </div>
         </DialogHeader>
-        <div className="py-3">
+        <div className="py-3 space-y-3">
+          {current.imageUrl && (
+            <div className="w-full rounded-md overflow-hidden">
+              <img
+                src={current.imageUrl}
+                alt={current.title}
+                className="w-full max-h-[300px] object-cover"
+                data-testid="img-announcement-popup"
+              />
+            </div>
+          )}
           <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed" data-testid="text-announcement-content">
             {current.content}
           </p>
