@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
-import { type Product } from "@shared/schema";
+import { type Product, type CategoryPriority } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -266,6 +266,33 @@ export function useDeleteProduct() {
   });
 }
 
+export function useBulkDeleteProducts() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (ids: number[]) => {
+      const res = await fetch(api.products.bulkDelete.path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to delete products");
+      return res.json() as Promise<{ deleted: number }>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: [api.products.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.products.categories.path] });
+      queryClient.invalidateQueries({ queryKey: [api.products.withDetails.path] });
+      toast({ title: "Produk Dihapus", description: `${data.deleted} produk berhasil dihapus.` });
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
 export function useUploadPhoto() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -324,6 +351,42 @@ export function useImportExcel() {
     },
     onError: (error) => {
       toast({ title: "Import Gagal", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
+export function useCategoryPriorities() {
+  return useQuery<CategoryPriority[]>({
+    queryKey: [api.categoryPriorities.list.path],
+    queryFn: async () => {
+      const res = await fetch(api.categoryPriorities.list.path, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch category priorities");
+      return res.json();
+    },
+  });
+}
+
+export function useSetCategoryPriorities() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (priorities: { categoryName: string; sortOrder: number }[]) => {
+      const res = await fetch(api.categoryPriorities.set.path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ priorities }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to save category priorities");
+      return res.json() as Promise<CategoryPriority[]>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.categoryPriorities.list.path] });
+      toast({ title: "Urutan Kategori Disimpan", description: "Prioritas kategori berhasil diperbarui." });
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
 }

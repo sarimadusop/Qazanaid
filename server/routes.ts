@@ -224,6 +224,23 @@ export async function registerRoutes(
     res.sendStatus(204);
   });
 
+  app.post(api.products.bulkDelete.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
+    const adminId = await getTeamAdminId(req);
+    const { ids } = req.body as { ids: number[] };
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "No product IDs provided" });
+    }
+    let deleted = 0;
+    for (const id of ids) {
+      const existing = await storage.getProduct(id);
+      if (existing && existing.userId === adminId) {
+        await storage.deleteProduct(id);
+        deleted++;
+      }
+    }
+    res.json({ deleted });
+  });
+
   // === Product Photos (multi-photo support) ===
   app.get(api.productPhotos.list.path, isAuthenticated, async (req, res) => {
     const productId = Number(req.params.productId);
@@ -512,7 +529,7 @@ export async function registerRoutes(
   });
 
   // === Download ZIP Photos ===
-  app.get(api.upload.downloadZip.path, isAuthenticated, async (req, res) => {
+  app.post(api.upload.downloadZip.path, isAuthenticated, async (req, res) => {
     try {
       const sessionId = Number(req.params.id);
       const adminId = await getTeamAdminId(req);
@@ -522,7 +539,32 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Session not found" });
       }
 
-      const recordsWithPhotos = session.records.filter(r => r.photoUrl);
+      const { productIds, date } = req.body as { productIds?: number[]; date?: string };
+
+      let recordsToDownload = session.records;
+
+      if (productIds && productIds.length > 0) {
+        recordsToDownload = recordsToDownload.filter(r => productIds.includes(r.productId));
+      }
+
+      if (date) {
+        const targetDate = new Date(date);
+        const targetDateStr = targetDate.toISOString().split("T")[0];
+        recordsToDownload = recordsToDownload.filter(r => {
+          if (r.photos && r.photos.length > 0) {
+            return r.photos.some(p => {
+              const photoDate = new Date(p.createdAt).toISOString().split("T")[0];
+              return photoDate === targetDateStr;
+            });
+          }
+          return false;
+        });
+      }
+
+      const recordsWithPhotos = recordsToDownload.filter(r => {
+        return (r.photos && r.photos.length > 0) || r.photoUrl;
+      });
+
       if (recordsWithPhotos.length === 0) {
         return res.status(404).json({ message: "Tidak ada foto untuk didownload" });
       }
@@ -534,17 +576,33 @@ export async function registerRoutes(
       const archive = archiver("zip", { zlib: { level: 5 } });
       archive.pipe(res);
 
-      const now = new Date(session.startedAt);
-      const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-
       for (const record of recordsWithPhotos) {
-        const relativePath = record.photoUrl!.replace(/^\//, "");
-        const filePath = path.join(process.cwd(), relativePath);
-        if (fs.existsSync(filePath)) {
-          const ext = path.extname(record.photoUrl!) || ".jpg";
-          const safeName = record.product.name.replace(/[^a-zA-Z0-9]/g, "_");
-          const zipFilename = `${safeTitle}/${safeName}_${dateStr}${ext}`;
-          archive.file(filePath, { name: zipFilename });
+        const safeName = record.product.name.replace(/[^a-zA-Z0-9]/g, "_");
+
+        if (record.photos && record.photos.length > 0) {
+          for (let i = 0; i < record.photos.length; i++) {
+            const photo = record.photos[i];
+            const relativePath = photo.url.replace(/^\//, "");
+            const filePath = path.join(process.cwd(), relativePath);
+            if (fs.existsSync(filePath)) {
+              const ext = path.extname(photo.url) || ".jpg";
+              const photoDate = new Date(photo.createdAt);
+              const dateStr = `${photoDate.getFullYear()}${String(photoDate.getMonth() + 1).padStart(2, '0')}${String(photoDate.getDate()).padStart(2, '0')}`;
+              const suffix = record.photos.length > 1 ? `_${i + 1}` : "";
+              const zipFilename = `${safeTitle}/${safeName}_${dateStr}${suffix}${ext}`;
+              archive.file(filePath, { name: zipFilename });
+            }
+          }
+        } else if (record.photoUrl) {
+          const relativePath = record.photoUrl.replace(/^\//, "");
+          const filePath = path.join(process.cwd(), relativePath);
+          if (fs.existsSync(filePath)) {
+            const ext = path.extname(record.photoUrl) || ".jpg";
+            const startDate = new Date(session.startedAt);
+            const dateStr = `${startDate.getFullYear()}${String(startDate.getMonth() + 1).padStart(2, '0')}${String(startDate.getDate()).padStart(2, '0')}`;
+            const zipFilename = `${safeTitle}/${safeName}_${dateStr}${ext}`;
+            archive.file(filePath, { name: zipFilename });
+          }
         }
       }
 
@@ -816,6 +874,25 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Delete motivation error:", err);
       res.status(500).json({ message: "Failed to delete motivation message" });
+    }
+  });
+
+  // === Category Priorities ===
+  app.get(api.categoryPriorities.list.path, isAuthenticated, async (req, res) => {
+    const adminId = await getTeamAdminId(req);
+    const priorities = await storage.getCategoryPriorities(adminId);
+    res.json(priorities);
+  });
+
+  app.post(api.categoryPriorities.set.path, isAuthenticated, requireRole("admin"), async (req, res) => {
+    try {
+      const adminId = await getTeamAdminId(req);
+      const { priorities } = req.body as { priorities: { categoryName: string; sortOrder: number }[] };
+      const result = await storage.setCategoryPriorities(adminId, priorities || []);
+      res.json(result);
+    } catch (err) {
+      console.error("Set category priorities error:", err);
+      res.status(500).json({ message: "Failed to set category priorities" });
     }
   });
 

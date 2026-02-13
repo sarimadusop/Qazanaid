@@ -103,6 +103,13 @@ export const motivationMessages = pgTable("motivation_messages", {
   active: integer("active").default(1).notNull(),
 });
 
+export const categoryPriorities = pgTable("category_priorities", {
+  id: serial("id").primaryKey(),
+  categoryName: text("category_name").notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  userId: text("user_id").notNull(),
+});
+
 // === Relations ===
 
 export const productPhotosRelations = relations(productPhotos, ({ one }) => ({
@@ -161,6 +168,7 @@ export const insertStaffMemberSchema = createInsertSchema(staffMembers).omit({ i
 export const insertAnnouncementSchema = createInsertSchema(announcements).omit({ id: true, createdAt: true });
 export const insertFeedbackSchema = createInsertSchema(feedback).omit({ id: true, createdAt: true });
 export const insertMotivationMessageSchema = createInsertSchema(motivationMessages).omit({ id: true });
+export const insertCategoryPrioritySchema = createInsertSchema(categoryPriorities).omit({ id: true });
 
 // === Types ===
 
@@ -195,6 +203,9 @@ export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
 
 export type MotivationMessage = typeof motivationMessages.$inferSelect;
 export type InsertMotivationMessage = z.infer<typeof insertMotivationMessageSchema>;
+
+export type CategoryPriority = typeof categoryPriorities.$inferSelect;
+export type InsertCategoryPriority = z.infer<typeof insertCategoryPrioritySchema>;
 
 export type ProductWithPhotosAndUnits = Product & { photos: ProductPhoto[]; units: ProductUnit[] };
 export type OpnameRecordWithProduct = OpnameRecord & { product: Product & { photos: ProductPhoto[]; units: ProductUnit[] }; photos: OpnameRecordPhoto[] };

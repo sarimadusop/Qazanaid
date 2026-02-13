@@ -2,7 +2,7 @@ import { db } from "./db";
 import {
   products, opnameSessions, opnameRecords, userRoles,
   productPhotos, productUnits, staffMembers, announcements,
-  feedback, motivationMessages, opnameRecordPhotos,
+  feedback, motivationMessages, opnameRecordPhotos, categoryPriorities,
   type Product, type InsertProduct,
   type OpnameSession, type InsertOpnameSession,
   type OpnameRecord,
@@ -16,6 +16,7 @@ import {
   type MotivationMessage, type InsertMotivationMessage,
   type OpnameRecordPhoto,
   type ProductWithPhotosAndUnits,
+  type CategoryPriority,
 } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 
@@ -71,12 +72,15 @@ export interface IStorage {
   createMotivationMessage(data: InsertMotivationMessage): Promise<MotivationMessage>;
   updateMotivationMessage(id: number, data: Partial<InsertMotivationMessage>): Promise<MotivationMessage>;
   deleteMotivationMessage(id: number): Promise<void>;
+
+  getCategoryPriorities(userId: string): Promise<CategoryPriority[]>;
+  setCategoryPriorities(userId: string, priorities: { categoryName: string; sortOrder: number }[]): Promise<CategoryPriority[]>;
 }
 
 export class DatabaseStorage implements IStorage {
   async getProducts(userId: string, locationType?: string): Promise<Product[]> {
     if (locationType) {
-      return await db.select().from(products).where(and(eq(products.userId, userId), eq(products.locationType, locationType))).orderBy(products.sku);
+      return await db.select().from(products).where(and(eq(products.userId, userId), eq(products.locationType, locationType as "toko" | "gudang"))).orderBy(products.sku);
     }
     return await db.select().from(products).where(eq(products.userId, userId)).orderBy(products.sku);
   }
@@ -145,7 +149,7 @@ export class DatabaseStorage implements IStorage {
 
   async getSessions(userId: string, locationType?: string): Promise<OpnameSession[]> {
     if (locationType) {
-      return await db.select().from(opnameSessions).where(and(eq(opnameSessions.userId, userId), eq(opnameSessions.locationType, locationType))).orderBy(desc(opnameSessions.startedAt));
+      return await db.select().from(opnameSessions).where(and(eq(opnameSessions.userId, userId), eq(opnameSessions.locationType, locationType as "toko" | "gudang"))).orderBy(desc(opnameSessions.startedAt));
     }
     return await db.select().from(opnameSessions).where(eq(opnameSessions.userId, userId)).orderBy(desc(opnameSessions.startedAt));
   }
@@ -359,6 +363,17 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMotivationMessage(id: number): Promise<void> {
     await db.delete(motivationMessages).where(eq(motivationMessages.id, id));
+  }
+
+  async getCategoryPriorities(userId: string): Promise<CategoryPriority[]> {
+    return await db.select().from(categoryPriorities).where(eq(categoryPriorities.userId, userId)).orderBy(categoryPriorities.sortOrder);
+  }
+
+  async setCategoryPriorities(userId: string, priorities: { categoryName: string; sortOrder: number }[]): Promise<CategoryPriority[]> {
+    await db.delete(categoryPriorities).where(eq(categoryPriorities.userId, userId));
+    if (priorities.length === 0) return [];
+    const values = priorities.map(p => ({ categoryName: p.categoryName, sortOrder: p.sortOrder, userId }));
+    return await db.insert(categoryPriorities).values(values).returning();
   }
 }
 

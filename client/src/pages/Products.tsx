@@ -4,6 +4,7 @@ import {
   useCreateProduct,
   useUpdateProduct,
   useDeleteProduct,
+  useBulkDeleteProducts,
   useCategories,
   useImportExcel,
   useProductPhotos,
@@ -13,6 +14,8 @@ import {
   useCreateProductUnit,
   useUpdateProductUnit,
   useDeleteProductUnit,
+  useCategoryPriorities,
+  useSetCategoryPriorities,
   type ExcelImportResult,
 } from "@/hooks/use-products";
 import { useRole } from "@/hooks/use-role";
@@ -23,6 +26,7 @@ import {
   Plus, Search, Trash2, Box, Loader2, Upload, ImageIcon, Filter,
   Download, FileSpreadsheet, CheckCircle2, AlertTriangle, XCircle,
   Pencil, Save, X, Camera, Package, Layers, Store, Warehouse,
+  ArrowUp, ArrowDown, ListOrdered, GripVertical,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -46,7 +50,8 @@ export default function Products() {
   const queryLocationType = locationType === "semua" ? undefined : locationType;
   const { data: products, isLoading } = useProducts(queryLocationType);
   const { data: categories } = useCategories();
-  const { canManageSku } = useRole();
+  const { data: categoryPriorities } = useCategoryPriorities();
+  const { canManageSku, isAdmin } = useRole();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -55,7 +60,11 @@ export default function Products() {
   const [isImportResultOpen, setIsImportResultOpen] = useState(false);
   const [photosProductId, setPhotosProductId] = useState<number | null>(null);
   const [unitsProductId, setUnitsProductId] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [categoryPriorityOpen, setCategoryPriorityOpen] = useState(false);
   const importExcel = useImportExcel();
+  const bulkDelete = useBulkDeleteProducts();
   const excelInputRef = useRef<HTMLInputElement>(null);
 
   const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -77,6 +86,13 @@ export default function Products() {
       p.sku.toLowerCase().includes(search.toLowerCase());
     const matchesCategory = categoryFilter === "all" || p.category === categoryFilter;
     return matchesSearch && matchesCategory;
+  })?.sort((a, b) => {
+    if (!categoryPriorities || categoryPriorities.length === 0) return 0;
+    const priorityMap = new Map(categoryPriorities.map(p => [p.categoryName, p.sortOrder]));
+    const aPriority = priorityMap.get(a.category || "") ?? 999;
+    const bPriority = priorityMap.get(b.category || "") ?? 999;
+    if (aPriority !== bPriority) return aPriority - bPriority;
+    return 0;
   });
 
   return (
@@ -88,6 +104,42 @@ export default function Products() {
             <p className="text-muted-foreground mt-1">Kelola katalog inventaris dan stok.</p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
+            {canManageSku && selectedIds.length > 0 && (
+              <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" data-testid="button-bulk-delete">
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Hapus {selectedIds.length} Produk
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Hapus {selectedIds.length} Produk?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Tindakan ini tidak dapat dibatalkan. Semua data produk yang dipilih akan dihapus permanen.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel data-testid="button-cancel-bulk-delete">Batal</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        bulkDelete.mutate(selectedIds, {
+                          onSuccess: () => {
+                            setSelectedIds([]);
+                            setBulkDeleteOpen(false);
+                          },
+                        });
+                      }}
+                      className="bg-destructive text-destructive-foreground"
+                      data-testid="button-confirm-bulk-delete"
+                    >
+                      {bulkDelete.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                      Hapus
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
             {canManageSku && (
               <>
                 <Button
@@ -166,6 +218,12 @@ export default function Products() {
                 ))}
               </SelectContent>
             </Select>
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={() => setCategoryPriorityOpen(true)} data-testid="button-category-priority">
+                <ListOrdered className="w-4 h-4 mr-2" />
+                Urutan Kategori
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -189,6 +247,12 @@ export default function Products() {
         onOpenChange={(open) => { if (!open) setUnitsProductId(null); }}
       />
 
+      <CategoryPriorityDialog
+        open={categoryPriorityOpen}
+        onOpenChange={setCategoryPriorityOpen}
+        categories={categories ?? []}
+      />
+
       <div className="bg-card border border-border rounded-md overflow-hidden">
         {isLoading ? (
           <div className="p-12 flex justify-center">
@@ -205,6 +269,24 @@ export default function Products() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="bg-muted/30 border-b border-border/50">
+                  {canManageSku && (
+                    <th className="px-4 py-3 w-10">
+                      <input
+                        type="checkbox"
+                        checked={filteredProducts ? filteredProducts.length > 0 && selectedIds.length === filteredProducts.length : false}
+                        onChange={() => {
+                          if (!filteredProducts) return;
+                          if (selectedIds.length === filteredProducts.length) {
+                            setSelectedIds([]);
+                          } else {
+                            setSelectedIds(filteredProducts.map(p => p.id));
+                          }
+                        }}
+                        className="rounded"
+                        data-testid="checkbox-select-all"
+                      />
+                    </th>
+                  )}
                   <th className="px-4 py-3 font-medium text-muted-foreground">Foto</th>
                   <th className="px-4 py-3 font-medium text-muted-foreground">SKU</th>
                   <th className="px-4 py-3 font-medium text-muted-foreground">Nama Produk</th>
@@ -230,6 +312,12 @@ export default function Products() {
                       key={product.id}
                       product={product}
                       canManageSku={canManageSku}
+                      selected={selectedIds.includes(product.id)}
+                      onToggleSelect={() => {
+                        setSelectedIds(prev =>
+                          prev.includes(product.id) ? prev.filter(id => id !== product.id) : [...prev, product.id]
+                        );
+                      }}
                       onEdit={() => setEditingId(product.id)}
                       onPhotos={() => setPhotosProductId(product.id)}
                       onUnits={() => setUnitsProductId(product.id)}
@@ -248,12 +336,16 @@ export default function Products() {
 function ProductRow({
   product,
   canManageSku,
+  selected,
+  onToggleSelect,
   onEdit,
   onPhotos,
   onUnits,
 }: {
   product: Product;
   canManageSku: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
   onEdit: () => void;
   onPhotos: () => void;
   onUnits: () => void;
@@ -267,6 +359,17 @@ function ProductRow({
 
   return (
     <tr className="hover:bg-muted/20 transition-colors group" data-testid={`row-product-${product.id}`}>
+      {canManageSku && (
+        <td className="px-4 py-3">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelect}
+            className="rounded"
+            data-testid={`checkbox-product-${product.id}`}
+          />
+        </td>
+      )}
       <td className="px-4 py-3">
         <button
           onClick={onPhotos}
@@ -403,6 +506,7 @@ function EditProductRow({ product, onCancel, onSaved }: { product: Product; onCa
 
   return (
     <tr className="bg-primary/5" data-testid={`row-edit-product-${product.id}`}>
+      <td className="px-4 py-3"></td>
       <td className="px-4 py-3">
         <div className="w-10 h-10 rounded-md bg-muted/50 flex items-center justify-center">
           <ImageIcon className="w-4 h-4 text-muted-foreground/40" />
@@ -989,6 +1093,101 @@ function ImportResultDialog({ result, open, onOpenChange }: { result: ExcelImpor
           <div className="flex justify-end">
             <Button onClick={() => onOpenChange(false)} data-testid="button-close-import-result">Tutup</Button>
           </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CategoryPriorityDialog({ open, onOpenChange, categories }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  categories: string[];
+}) {
+  const { data: priorities } = useCategoryPriorities();
+  const setCategoryPriorities = useSetCategoryPriorities();
+  const [orderedCategories, setOrderedCategories] = useState<string[]>([]);
+
+  const initOrder = () => {
+    if (priorities && priorities.length > 0) {
+      const priorityMap = new Map(priorities.map(p => [p.categoryName, p.sortOrder]));
+      const sorted = [...categories].sort((a, b) => {
+        const aPriority = priorityMap.get(a) ?? 999;
+        const bPriority = priorityMap.get(b) ?? 999;
+        return aPriority - bPriority;
+      });
+      setOrderedCategories(sorted);
+    } else {
+      setOrderedCategories([...categories]);
+    }
+  };
+
+  const moveUp = (index: number) => {
+    if (index === 0) return;
+    const newOrder = [...orderedCategories];
+    [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
+    setOrderedCategories(newOrder);
+  };
+
+  const moveDown = (index: number) => {
+    if (index === orderedCategories.length - 1) return;
+    const newOrder = [...orderedCategories];
+    [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
+    setOrderedCategories(newOrder);
+  };
+
+  const handleSave = () => {
+    const priorityData = orderedCategories.map((cat, i) => ({
+      categoryName: cat,
+      sortOrder: i,
+    }));
+    setCategoryPriorities.mutate(priorityData, {
+      onSuccess: () => onOpenChange(false),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (v) initOrder(); onOpenChange(v); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Urutan Prioritas Kategori</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <p className="text-sm text-muted-foreground">Atur urutan prioritas kategori. Kategori di atas akan ditampilkan lebih dulu.</p>
+          {orderedCategories.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Tidak ada kategori</p>
+          ) : (
+            <div className="space-y-1 max-h-80 overflow-y-auto">
+              {orderedCategories.map((cat, index) => (
+                <div
+                  key={cat}
+                  className="flex items-center gap-2 p-2 rounded-md border border-border/50"
+                  data-testid={`category-priority-${index}`}
+                >
+                  <GripVertical className="w-4 h-4 text-muted-foreground/50 shrink-0" />
+                  <span className="text-sm font-medium flex-1">{cat}</span>
+                  <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate text-xs">
+                    #{index + 1}
+                  </Badge>
+                  <Button variant="ghost" size="icon" onClick={() => moveUp(index)} disabled={index === 0} data-testid={`button-move-up-${index}`}>
+                    <ArrowUp className="w-3 h-3" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => moveDown(index)} disabled={index === orderedCategories.length - 1} data-testid={`button-move-down-${index}`}>
+                    <ArrowDown className="w-3 h-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-category-priority">
+            Batal
+          </Button>
+          <Button onClick={handleSave} disabled={setCategoryPriorities.isPending} data-testid="button-save-category-priority">
+            {setCategoryPriorities.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+            Simpan Urutan
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
