@@ -2,7 +2,7 @@ import { useSession, useUpdateRecord, useCompleteSession, useUploadOpnamePhoto, 
 import { useCategories } from "@/hooks/use-products";
 import { useRole } from "@/hooks/use-role";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, CheckCircle2, Download, Search, Loader2, Filter, Camera, Image, X, FileArchive, Trash2, Plus, Printer, MapPin, User } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, Search, Loader2, Filter, Camera, Image, X, FileArchive, Trash2, Plus, Printer, MapPin, User, CalendarDays, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +46,7 @@ export default function SessionDetail() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [completionDialogOpen, setCompletionDialogOpen] = useState(false);
+  const [downloadDialogOpen, setDownloadDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const isCompleted = session?.status === "completed";
@@ -94,9 +95,33 @@ export default function SessionDetail() {
     });
   };
 
-  const downloadPhotosZip = () => {
-    const url = buildUrl(api.upload.downloadZip.path, { id: sessionId });
-    window.open(url, "_blank");
+  const downloadPhotosZip = async (options?: { productIds?: number[]; date?: string }) => {
+    try {
+      const url = buildUrl(api.upload.downloadZip.path, { id: sessionId });
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(options || {}),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        toast({ title: "Error", description: err.message || "Gagal download ZIP", variant: "destructive" });
+        return;
+      }
+      const blob = await res.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = `${session?.title?.replace(/\s+/g, "_") || "photos"}_Photos.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+      toast({ title: "Download Berhasil", description: "File ZIP telah didownload." });
+    } catch {
+      toast({ title: "Error", description: "Gagal download ZIP", variant: "destructive" });
+    }
   };
 
   const handleComplete = () => {
@@ -152,7 +177,7 @@ export default function SessionDetail() {
 
         <div className="flex items-center gap-3 flex-wrap">
           {hasPhotos && (
-            <Button variant="outline" onClick={downloadPhotosZip} data-testid="button-download-zip">
+            <Button variant="outline" onClick={() => setDownloadDialogOpen(true)} data-testid="button-download-zip">
               <FileArchive className="w-4 h-4 mr-2" />
               Download Foto ZIP
             </Button>
@@ -288,7 +313,7 @@ export default function SessionDetail() {
 
             <div className="flex flex-col gap-2 pt-2">
               {hasPhotos && (
-                <Button variant="outline" onClick={downloadPhotosZip} className="w-full" data-testid="button-completion-download-zip">
+                <Button variant="outline" onClick={() => { setCompletionDialogOpen(false); setDownloadDialogOpen(true); }} className="w-full" data-testid="button-completion-download-zip">
                   <FileArchive className="w-4 h-4 mr-2" />
                   Download Foto ZIP
                 </Button>
@@ -310,7 +335,175 @@ export default function SessionDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DownloadDialog
+        open={downloadDialogOpen}
+        onOpenChange={setDownloadDialogOpen}
+        records={session?.records ?? []}
+        onDownload={downloadPhotosZip}
+      />
     </div>
+  );
+}
+
+function DownloadDialog({ open, onOpenChange, records, onDownload }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  records: OpnameRecordWithProduct[];
+  onDownload: (options?: { productIds?: number[]; date?: string }) => Promise<void>;
+}) {
+  const [mode, setMode] = useState<"all" | "products" | "date">("all");
+  const [selectedProducts, setSelectedProducts] = useState<number[]>([]);
+  const [selectedDate, setSelectedDate] = useState("");
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const productsWithPhotos = useMemo(() => {
+    return records
+      .filter(r => (r.photos && r.photos.length > 0) || r.photoUrl)
+      .map(r => ({ id: r.productId, name: r.product.name, sku: r.product.sku }))
+      .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+  }, [records]);
+
+  const photoDates = useMemo(() => {
+    const dates = new Set<string>();
+    for (const r of records) {
+      if (r.photos) {
+        for (const p of r.photos) {
+          dates.add(new Date(p.createdAt).toISOString().split("T")[0]);
+        }
+      }
+    }
+    return Array.from(dates).sort().reverse();
+  }, [records]);
+
+  const toggleProduct = (id: number) => {
+    setSelectedProducts(prev =>
+      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+    );
+  };
+
+  const selectAllProducts = () => {
+    if (selectedProducts.length === productsWithPhotos.length) {
+      setSelectedProducts([]);
+    } else {
+      setSelectedProducts(productsWithPhotos.map(p => p.id));
+    }
+  };
+
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    try {
+      if (mode === "products" && selectedProducts.length > 0) {
+        await onDownload({ productIds: selectedProducts });
+      } else if (mode === "date" && selectedDate) {
+        await onDownload({ date: selectedDate });
+      } else {
+        await onDownload();
+      }
+      onOpenChange(false);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const canDownload = mode === "all" || (mode === "products" && selectedProducts.length > 0) || (mode === "date" && selectedDate);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Download Foto ZIP</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Pilih mode download:</label>
+            <Select value={mode} onValueChange={(v) => setMode(v as "all" | "products" | "date")}>
+              <SelectTrigger data-testid="select-download-mode">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-card border border-border">
+                <SelectItem value="all" data-testid="option-download-all">Semua Foto</SelectItem>
+                <SelectItem value="products" data-testid="option-download-products">Pilih Produk</SelectItem>
+                <SelectItem value="date" data-testid="option-download-date">Pilih Tanggal</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {mode === "products" && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-foreground">Pilih produk:</label>
+                <Button variant="ghost" size="sm" onClick={selectAllProducts} data-testid="button-select-all-products">
+                  <CheckSquare className="w-3 h-3 mr-1" />
+                  {selectedProducts.length === productsWithPhotos.length ? "Batal Semua" : "Pilih Semua"}
+                </Button>
+              </div>
+              <div className="max-h-60 overflow-y-auto space-y-1 border rounded-md p-2">
+                {productsWithPhotos.map(p => (
+                  <label
+                    key={p.id}
+                    className="flex items-center gap-2 p-2 rounded-md cursor-pointer hover-elevate"
+                    data-testid={`checkbox-product-${p.id}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedProducts.includes(p.id)}
+                      onChange={() => toggleProduct(p.id)}
+                      className="rounded"
+                    />
+                    <span className="text-sm">{p.name}</span>
+                    <span className="text-xs text-muted-foreground ml-auto">{p.sku}</span>
+                  </label>
+                ))}
+                {productsWithPhotos.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">Tidak ada produk dengan foto</p>
+                )}
+              </div>
+              {selectedProducts.length > 0 && (
+                <p className="text-xs text-muted-foreground">{selectedProducts.length} produk dipilih</p>
+              )}
+            </div>
+          )}
+
+          {mode === "date" && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Pilih tanggal:</label>
+              {photoDates.length > 0 ? (
+                <div className="space-y-1 border rounded-md p-2">
+                  {photoDates.map(d => (
+                    <label
+                      key={d}
+                      className="flex items-center gap-2 p-2 rounded-md cursor-pointer hover-elevate"
+                      data-testid={`radio-date-${d}`}
+                    >
+                      <input
+                        type="radio"
+                        name="download-date"
+                        checked={selectedDate === d}
+                        onChange={() => setSelectedDate(d)}
+                      />
+                      <CalendarDays className="w-3 h-3 text-muted-foreground" />
+                      <span className="text-sm">{new Date(d).toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">Tidak ada tanggal foto tersedia</p>
+              )}
+            </div>
+          )}
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-download">
+            Batal
+          </Button>
+          <Button onClick={handleDownload} disabled={!canDownload || isDownloading} data-testid="button-confirm-download">
+            {isDownloading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileArchive className="w-4 h-4 mr-2" />}
+            Download
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

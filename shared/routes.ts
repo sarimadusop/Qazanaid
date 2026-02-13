@@ -34,6 +34,10 @@ export const api = {
       method: 'DELETE' as const,
       path: '/api/products/:id' as const,
     },
+    bulkDelete: {
+      method: 'POST' as const,
+      path: '/api/products/bulk-delete' as const,
+    },
     categories: {
       method: 'GET' as const,
       path: '/api/products/categories' as const,
@@ -144,7 +148,7 @@ export const api = {
       path: '/api/upload/opname-photo/:sessionId/:productId' as const,
     },
     downloadZip: {
-      method: 'GET' as const,
+      method: 'POST' as const,
       path: '/api/sessions/:id/download-photos' as const,
     },
   },
@@ -224,6 +228,16 @@ export const api = {
     delete: {
       method: 'DELETE' as const,
       path: '/api/motivation/:id' as const,
+    },
+  },
+  categoryPriorities: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/category-priorities' as const,
+    },
+    set: {
+      method: 'POST' as const,
+      path: '/api/category-priorities' as const,
     },
   },
 };

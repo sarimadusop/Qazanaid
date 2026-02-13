@@ -4,6 +4,9 @@
 A full-stack inventory management application for stock opname (stock counting/auditing). Built with Express + Vite + React + PostgreSQL + Drizzle ORM. Supports location-based access control (Toko/Gudang), multi-photo with compression, hierarchical units, staff management, announcements, feedback, and motivation messages.
 
 ## Recent Changes
+- **2026-02-13**: Selective ZIP download dialog (filter by product or date) using POST endpoint
+- **2026-02-13**: Bulk delete products (checkbox selection, select all, confirm dialog)
+- **2026-02-13**: Category priority ordering (admin configurable, affects product display order)
 - **2026-02-12**: Added location-based access (Toko/Gudang) for products and sessions
 - **2026-02-12**: New roles: stock_counter_toko (only toko), stock_counter_gudang (only gudang)
 - **2026-02-12**: Multi-photo support per product and per opname record with client-side compression
@@ -67,6 +70,7 @@ A full-stack inventory management application for stock opname (stock counting/a
 - **announcements** - Team announcements with title, content, expiresAt
 - **feedback** - Kritik & Saran entries with type and content
 - **motivation_messages** - Customizable motivation messages for SO dialog
+- **category_priorities** - Admin-configurable category display ordering
 
 ### Auth & Team System
 - Every user who registers via the public form becomes an admin
