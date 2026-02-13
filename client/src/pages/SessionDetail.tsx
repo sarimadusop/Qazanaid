@@ -1,8 +1,8 @@
 import { useSession, useUpdateRecord, useCompleteSession, useUploadOpnamePhoto, useUploadRecordPhoto, useDeleteRecordPhoto } from "@/hooks/use-sessions";
-import { useCategories } from "@/hooks/use-products";
+import { useCategories, useCategoryPriorities, useSetCategoryPriorities } from "@/hooks/use-products";
 import { useRole } from "@/hooks/use-role";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, CheckCircle2, Download, Search, Loader2, Filter, Camera, Image, X, FileArchive, Trash2, Plus, Printer, MapPin, User, CalendarDays, CheckSquare } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, Search, Loader2, Filter, Camera, Image, X, FileArchive, Trash2, Plus, Printer, MapPin, User, CalendarDays, CheckSquare, ListOrdered, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -47,19 +47,30 @@ export default function SessionDetail() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [completionDialogOpen, setCompletionDialogOpen] = useState(false);
   const [downloadDialogOpen, setDownloadDialogOpen] = useState(false);
+  const [categoryPriorityOpen, setCategoryPriorityOpen] = useState(false);
   const { toast } = useToast();
+  const { data: categoryPriorities } = useCategoryPriorities();
 
   const isCompleted = session?.status === "completed";
 
   const records = useMemo(() => {
     if (!session?.records) return [];
-    return session.records.filter(r => {
+    let filtered = session.records.filter(r => {
       const matchesSearch = r.product.name.toLowerCase().includes(search.toLowerCase()) ||
         r.product.sku.toLowerCase().includes(search.toLowerCase());
       const matchesCategory = categoryFilter === "all" || r.product.category === categoryFilter;
       return matchesSearch && matchesCategory;
     });
-  }, [session?.records, search, categoryFilter]);
+    if (categoryPriorities && categoryPriorities.length > 0) {
+      const priorityMap = new Map(categoryPriorities.map((p: any) => [p.categoryName, p.sortOrder]));
+      filtered = [...filtered].sort((a, b) => {
+        const aPriority = priorityMap.get(a.product.category) ?? 999;
+        const bPriority = priorityMap.get(b.product.category) ?? 999;
+        return aPriority - bPriority;
+      });
+    }
+    return filtered;
+  }, [session?.records, search, categoryFilter, categoryPriorities]);
 
   const hasPhotos = useMemo(() => {
     return session?.records?.some(r => r.photoUrl || (r.photos && r.photos.length > 0)) ?? false;
@@ -252,7 +263,17 @@ export default function SessionDetail() {
             ))}
           </SelectContent>
         </Select>
+        <Button variant="outline" size="sm" onClick={() => setCategoryPriorityOpen(true)} data-testid="button-session-category-priority">
+          <ListOrdered className="w-4 h-4 mr-2" />
+          Urutan Kategori
+        </Button>
       </div>
+
+      <SessionCategoryPriorityDialog
+        open={categoryPriorityOpen}
+        onOpenChange={setCategoryPriorityOpen}
+        categories={categories ?? []}
+      />
 
       <div className="bg-card border border-border/50 rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -834,5 +855,103 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function SessionCategoryPriorityDialog({ open, onOpenChange, categories }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  categories: string[];
+}) {
+  const { data: priorities, isLoading } = useCategoryPriorities();
+  const setCategoryPriorities = useSetCategoryPriorities();
+  const [orderedCategories, setOrderedCategories] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!open || categories.length === 0) return;
+    if (priorities && priorities.length > 0) {
+      const priorityMap = new Map(priorities.map((p: any) => [p.categoryName, p.sortOrder]));
+      const sorted = [...categories].sort((a, b) => {
+        const aPriority = priorityMap.get(a) ?? 999;
+        const bPriority = priorityMap.get(b) ?? 999;
+        return aPriority - bPriority;
+      });
+      setOrderedCategories(sorted);
+    } else if (!isLoading) {
+      setOrderedCategories([...categories]);
+    }
+  }, [open, categories, priorities, isLoading]);
+
+  const moveUp = (index: number) => {
+    if (index === 0) return;
+    const newOrder = [...orderedCategories];
+    [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
+    setOrderedCategories(newOrder);
+  };
+
+  const moveDown = (index: number) => {
+    if (index === orderedCategories.length - 1) return;
+    const newOrder = [...orderedCategories];
+    [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
+    setOrderedCategories(newOrder);
+  };
+
+  const handleSave = () => {
+    const priorityData = orderedCategories.map((cat, i) => ({
+      categoryName: cat,
+      sortOrder: i,
+    }));
+    setCategoryPriorities.mutate(priorityData, {
+      onSuccess: () => onOpenChange(false),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Urutan Prioritas Kategori</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <p className="text-sm text-muted-foreground">Atur urutan prioritas kategori. Kategori di atas akan ditampilkan lebih dulu saat stock opname.</p>
+          {isLoading ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : orderedCategories.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Tidak ada kategori</p>
+          ) : (
+            <div className="space-y-1 max-h-80 overflow-y-auto">
+              {orderedCategories.map((cat, index) => (
+                <div
+                  key={cat}
+                  className="flex items-center gap-2 p-2 rounded-md border border-border/50"
+                  data-testid={`session-category-priority-${index}`}
+                >
+                  <GripVertical className="w-4 h-4 text-muted-foreground/50 shrink-0" />
+                  <span className="text-sm font-medium flex-1">{cat}</span>
+                  <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate text-xs">
+                    #{index + 1}
+                  </Badge>
+                  <Button variant="ghost" size="icon" onClick={() => moveUp(index)} disabled={index === 0} data-testid={`button-session-move-up-${index}`}>
+                    <ArrowUp className="w-3 h-3" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => moveDown(index)} disabled={index === orderedCategories.length - 1} data-testid={`button-session-move-down-${index}`}>
+                    <ArrowDown className="w-3 h-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+          <Button onClick={handleSave} disabled={setCategoryPriorities.isPending}>
+            {setCategoryPriorities.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Simpan Urutan
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
