@@ -4,6 +4,7 @@
 A full-stack inventory management application for stock opname (stock counting/auditing). Built with Express + Vite + React + PostgreSQL + Drizzle ORM. Supports location-based access control (Toko/Gudang), multi-photo with compression, hierarchical units, staff management, announcements, feedback, and motivation messages.
 
 ## Recent Changes
+- **2026-02-13**: Announcements with image support - admin can upload images to announcements, displayed prominently at top of Dashboard as banners with big header text and images, also shown in popup dialog
 - **2026-02-13**: Announcement popup - active announcements show as popup dialog when user opens the app
 - **2026-02-13**: Selective ZIP download dialog (filter by product or date) using POST endpoint
 - **2026-02-13**: Bulk delete products (checkbox selection, select all, confirm dialog)

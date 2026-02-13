@@ -82,6 +82,7 @@ export const announcements = pgTable("announcements", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   content: text("content").notNull(),
+  imageUrl: text("image_url"),
   userId: text("user_id").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   expiresAt: timestamp("expires_at"),

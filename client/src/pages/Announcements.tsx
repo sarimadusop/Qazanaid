@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { useAnnouncements, useCreateAnnouncement, useUpdateAnnouncement, useDeleteAnnouncement } from "@/hooks/use-announcements";
+import { useState, useRef } from "react";
+import { useAnnouncements, useCreateAnnouncement, useUpdateAnnouncement, useDeleteAnnouncement, useUploadAnnouncementImage } from "@/hooks/use-announcements";
 import { useRole } from "@/hooks/use-role";
-import { Megaphone, Plus, Pencil, Trash2, Calendar, Loader2 } from "lucide-react";
+import { Megaphone, Plus, Pencil, Trash2, Calendar, Loader2, ImagePlus, X } from "lucide-react";
+import { compressImage } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -93,45 +94,61 @@ export default function Announcements() {
 
 function AnnouncementCard({ announcement, onEdit }: { announcement: any; onEdit: () => void }) {
   const isExpired = announcement.expiresAt && new Date(announcement.expiresAt) < new Date();
+  const { role } = useRole();
+  const isAdmin = role === "admin";
 
   return (
-    <Card className="flex flex-col p-6 hover-elevate" data-testid={`card-announcement-${announcement.id}`}>
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <h3 className="font-display font-bold text-lg text-foreground flex-1 break-words">{announcement.title}</h3>
-        <div className="flex items-center gap-1 shrink-0">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground"
-            onClick={onEdit}
-            data-testid={`button-edit-announcement-${announcement.id}`}
-          >
-            <Pencil className="w-4 h-4" />
-          </Button>
-          <DeleteAnnouncementButton id={announcement.id} title={announcement.title} />
+    <Card className="flex flex-col overflow-visible hover-elevate" data-testid={`card-announcement-${announcement.id}`}>
+      {announcement.imageUrl && (
+        <div className="w-full aspect-video overflow-hidden rounded-t-md">
+          <img
+            src={announcement.imageUrl}
+            alt={announcement.title}
+            className="w-full h-full object-cover"
+            data-testid={`img-announcement-${announcement.id}`}
+          />
         </div>
-      </div>
-
-      <p className="text-foreground whitespace-pre-wrap break-words mb-4 flex-1">{announcement.content}</p>
-
-      <div className="space-y-2 pt-4 border-t border-border/50">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Calendar className="w-4 h-4" />
-          <span>Dibuat: {format(new Date(announcement.createdAt), "dd MMM yyyy HH:mm")}</span>
+      )}
+      <div className="p-6 flex flex-col flex-1">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <h3 className="font-display font-bold text-lg text-foreground flex-1 break-words">{announcement.title}</h3>
+          {isAdmin && (
+            <div className="flex items-center gap-1 shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground"
+                onClick={onEdit}
+                data-testid={`button-edit-announcement-${announcement.id}`}
+              >
+                <Pencil className="w-4 h-4" />
+              </Button>
+              <DeleteAnnouncementButton id={announcement.id} title={announcement.title} />
+            </div>
+          )}
         </div>
-        {announcement.expiresAt && (
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-muted-foreground" />
-            <span className={`text-sm ${isExpired ? "text-destructive" : "text-muted-foreground"}`}>
-              Berlaku sampai: {format(new Date(announcement.expiresAt), "dd MMM yyyy")}
-            </span>
-            {isExpired && (
-              <Badge variant="destructive" className="text-xs ml-auto">
-                Expired
-              </Badge>
-            )}
+
+        <p className="text-foreground whitespace-pre-wrap break-words mb-4 flex-1">{announcement.content}</p>
+
+        <div className="space-y-2 pt-4 border-t border-border/50">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Calendar className="w-4 h-4" />
+            <span>Dibuat: {format(new Date(announcement.createdAt), "dd MMM yyyy HH:mm")}</span>
           </div>
-        )}
+          {announcement.expiresAt && (
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-muted-foreground" />
+              <span className={`text-sm ${isExpired ? "text-destructive" : "text-muted-foreground"}`}>
+                Berlaku sampai: {format(new Date(announcement.expiresAt), "dd MMM yyyy")}
+              </span>
+              {isExpired && (
+                <Badge variant="destructive" className="text-xs ml-auto">
+                  Expired
+                </Badge>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </Card>
   );
@@ -142,12 +159,30 @@ function EditAnnouncementCard({ announcement, onCancel, onSaved }: { announcemen
   const [content, setContent] = useState(announcement.content);
   const [expiresAt, setExpiresAt] = useState(announcement.expiresAt ? new Date(announcement.expiresAt).toISOString().split('T')[0] : "");
   const updateAnnouncement = useUpdateAnnouncement();
+  const uploadImage = useUploadAnnouncementImage();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = () => {
     updateAnnouncement.mutate(
       { id: announcement.id, title, content, expiresAt: expiresAt ? expiresAt : undefined },
       { onSuccess: onSaved }
     );
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImage(file);
+      uploadImage.mutate({ id: announcement.id, file: compressed });
+    } catch {
+      uploadImage.mutate({ id: announcement.id, file });
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleRemoveImage = () => {
+    updateAnnouncement.mutate({ id: announcement.id, imageUrl: null } as any);
   };
 
   return (
@@ -158,7 +193,7 @@ function EditAnnouncementCard({ announcement, onCancel, onSaved }: { announcemen
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="bg-white mt-1"
+            className="bg-white dark:bg-background mt-1"
             data-testid={`input-edit-title-${announcement.id}`}
           />
         </div>
@@ -168,9 +203,49 @@ function EditAnnouncementCard({ announcement, onCancel, onSaved }: { announcemen
           <Textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            className="bg-white mt-1 min-h-[120px]"
+            className="bg-white dark:bg-background mt-1 min-h-[120px]"
             data-testid={`input-edit-content-${announcement.id}`}
           />
+        </div>
+
+        <div>
+          <label className="text-sm font-medium text-foreground">Gambar (Opsional)</label>
+          <div className="mt-1 space-y-2">
+            {announcement.imageUrl && (
+              <div className="relative inline-block">
+                <img src={announcement.imageUrl} alt="Preview" className="w-full max-h-40 object-cover rounded-md" />
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="absolute top-1 right-1"
+                  onClick={handleRemoveImage}
+                  data-testid={`button-remove-image-${announcement.id}`}
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                ref={fileInputRef}
+                onChange={handleImageUpload}
+                data-testid={`input-edit-image-${announcement.id}`}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadImage.isPending}
+              >
+                {uploadImage.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ImagePlus className="w-4 h-4 mr-2" />}
+                {announcement.imageUrl ? "Ganti Gambar" : "Tambah Gambar"}
+              </Button>
+            </div>
+          </div>
         </div>
 
         <div>
@@ -179,7 +254,7 @@ function EditAnnouncementCard({ announcement, onCancel, onSaved }: { announcemen
             type="date"
             value={expiresAt}
             onChange={(e) => setExpiresAt(e.target.value)}
-            className="bg-white mt-1"
+            className="bg-white dark:bg-background mt-1"
             data-testid={`input-edit-expires-${announcement.id}`}
           />
         </div>
@@ -210,6 +285,10 @@ function EditAnnouncementCard({ announcement, onCancel, onSaved }: { announcemen
 
 function CreateAnnouncementDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const createAnnouncement = useCreateAnnouncement();
+  const uploadImage = useUploadAnnouncementImage();
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<z.infer<typeof createFormSchema>>({
     resolver: zodResolver(createFormSchema),
@@ -220,7 +299,17 @@ function CreateAnnouncementDialog({ open, onOpenChange }: { open: boolean; onOpe
     },
   });
 
-  const onSubmit = (data: z.infer<typeof createFormSchema>) => {
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSelectedImage(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setImagePreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const onSubmit = async (data: z.infer<typeof createFormSchema>) => {
     createAnnouncement.mutate(
       {
         title: data.title,
@@ -228,16 +317,29 @@ function CreateAnnouncementDialog({ open, onOpenChange }: { open: boolean; onOpe
         expiresAt: data.expiresAt || undefined,
       },
       {
-        onSuccess: () => {
+        onSuccess: async (result: any) => {
+          if (selectedImage && result?.id) {
+            try {
+              const compressed = await compressImage(selectedImage);
+              uploadImage.mutate({ id: result.id, file: compressed });
+            } catch {
+              uploadImage.mutate({ id: result.id, file: selectedImage });
+            }
+          }
           onOpenChange(false);
           form.reset();
+          setSelectedImage(null);
+          setImagePreview(null);
         },
       }
     );
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => {
+      onOpenChange(v);
+      if (!v) { setSelectedImage(null); setImagePreview(null); }
+    }}>
       <DialogTrigger asChild>
         <Button data-testid="button-create-announcement">
           <Plus className="w-4 h-4 mr-2" />
@@ -271,12 +373,50 @@ function CreateAnnouncementDialog({ open, onOpenChange }: { open: boolean; onOpe
                 <FormItem>
                   <FormLabel>Isi Pengumuman</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Konten pengumuman..." {...field} value={field.value || ""} data-testid="input-content" className="min-h-[150px]" />
+                    <Textarea placeholder="Konten pengumuman..." {...field} value={field.value || ""} data-testid="input-content" className="min-h-[120px]" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+            <div>
+              <label className="text-sm font-medium text-foreground">Gambar (Opsional)</label>
+              <div className="mt-1 space-y-2">
+                {imagePreview && (
+                  <div className="relative inline-block w-full">
+                    <img src={imagePreview} alt="Preview" className="w-full max-h-40 object-cover rounded-md" />
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      type="button"
+                      className="absolute top-1 right-1"
+                      onClick={() => { setSelectedImage(null); setImagePreview(null); }}
+                      data-testid="button-remove-preview"
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  ref={fileInputRef}
+                  onChange={handleImageSelect}
+                  data-testid="input-announcement-image"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <ImagePlus className="w-4 h-4 mr-2" />
+                  {imagePreview ? "Ganti Gambar" : "Pilih Gambar"}
+                </Button>
+              </div>
+            </div>
 
             <FormField
               control={form.control}

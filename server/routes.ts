@@ -720,6 +720,7 @@ export async function registerRoutes(
       const announcement = await storage.createAnnouncement({
         title,
         content,
+        imageUrl: null,
         userId: adminId,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
       });
@@ -733,16 +734,39 @@ export async function registerRoutes(
   app.put(api.announcements.update.path, isAuthenticated, requireRole("admin"), async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const { title, content, expiresAt } = req.body;
+      const { title, content, expiresAt, imageUrl } = req.body;
       const updates: Record<string, unknown> = {};
       if (title !== undefined) updates.title = title;
       if (content !== undefined) updates.content = content;
       if (expiresAt !== undefined) updates.expiresAt = expiresAt ? new Date(expiresAt) : null;
+      if (imageUrl !== undefined) updates.imageUrl = imageUrl;
       const announcement = await storage.updateAnnouncement(id, updates as any);
       res.json(announcement);
     } catch (err) {
       console.error("Update announcement error:", err);
       res.status(500).json({ message: "Failed to update announcement" });
+    }
+  });
+
+  app.post(api.announcements.uploadImage.path, isAuthenticated, requireRole("admin"), upload.single("image"), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const ext = path.extname(file.originalname).toLowerCase() || ".jpg";
+      const safeName = `announcement_${id}_${Date.now()}${ext}`;
+      const destPath = path.join(uploadsDir, safeName);
+      fs.renameSync(file.path, destPath);
+
+      const url = `/uploads/${safeName}`;
+      const announcement = await storage.updateAnnouncement(id, { imageUrl: url });
+      res.json(announcement);
+    } catch (err) {
+      console.error("Announcement image upload error:", err);
+      res.status(500).json({ message: "Failed to upload image" });
     }
   });
 

@@ -197,6 +197,10 @@ export const api = {
       method: 'DELETE' as const,
       path: '/api/announcements/:id' as const,
     },
+    uploadImage: {
+      method: 'POST' as const,
+      path: '/api/announcements/:id/image' as const,
+    },
   },
   feedback: {
     list: {

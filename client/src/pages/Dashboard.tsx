@@ -21,7 +21,7 @@ export default function Dashboard() {
   const lowStockItems = products?.filter(p => p.currentStock < 10) || [];
   
   const now = new Date();
-  const activeAnnouncements = announcements?.filter(a => !a.expiresAt || new Date(a.expiresAt) > now) || [];
+  const activeAnnouncements = announcements?.filter((a: any) => !a.expiresAt || new Date(a.expiresAt) > now) || [];
 
   const roleLabel: Record<string, string> = {
     admin: "Admin",
@@ -57,14 +57,76 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 animate-enter">
+      {activeAnnouncements.length > 0 && (
+        <div className="space-y-4" data-testid="section-announcements">
+          {activeAnnouncements.map((announcement: any) => (
+            <Card key={announcement.id} className="overflow-visible" data-testid={`card-announcement-${announcement.id}`}>
+              {announcement.imageUrl ? (
+                <div className="flex flex-col md:flex-row">
+                  <div className="md:w-2/5 w-full">
+                    <img
+                      src={announcement.imageUrl}
+                      alt={announcement.title}
+                      className="w-full h-full object-cover rounded-t-md md:rounded-l-md md:rounded-tr-none min-h-[200px] max-h-[300px]"
+                      data-testid={`img-announcement-${announcement.id}`}
+                    />
+                  </div>
+                  <div className="md:w-3/5 w-full p-6 flex flex-col justify-center">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Megaphone className="w-5 h-5 text-primary shrink-0" />
+                      <Badge variant="secondary">Pengumuman</Badge>
+                    </div>
+                    <h2 className="text-2xl md:text-3xl font-display font-bold text-foreground mb-3" data-testid={`text-announcement-title-${announcement.id}`}>
+                      {announcement.title}
+                    </h2>
+                    <p className="text-foreground/80 whitespace-pre-wrap leading-relaxed mb-4" data-testid={`text-announcement-content-${announcement.id}`}>
+                      {announcement.content}
+                    </p>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span>{format(new Date(announcement.createdAt), 'dd MMM yyyy')}</span>
+                      {announcement.expiresAt && (
+                        <span className="text-orange-600 font-medium">
+                          Berlaku hingga {format(new Date(announcement.expiresAt), 'dd MMM yyyy')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 md:p-8 text-center">
+                  <div className="flex items-center justify-center gap-2 mb-3">
+                    <Megaphone className="w-6 h-6 text-primary" />
+                    <Badge variant="secondary">Pengumuman</Badge>
+                  </div>
+                  <h2 className="text-2xl md:text-3xl font-display font-bold text-foreground mb-3" data-testid={`text-announcement-title-${announcement.id}`}>
+                    {announcement.title}
+                  </h2>
+                  <p className="text-foreground/80 whitespace-pre-wrap leading-relaxed max-w-2xl mx-auto mb-4" data-testid={`text-announcement-content-${announcement.id}`}>
+                    {announcement.content}
+                  </p>
+                  <div className="flex items-center justify-center gap-3 text-xs text-muted-foreground">
+                    <span>{format(new Date(announcement.createdAt), 'dd MMM yyyy')}</span>
+                    {announcement.expiresAt && (
+                      <span className="text-orange-600 font-medium">
+                        Berlaku hingga {format(new Date(announcement.expiresAt), 'dd MMM yyyy')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </Card>
+          ))}
+        </div>
+      )}
+
       <div>
         <h1 className="text-3xl font-display font-bold text-foreground" data-testid="text-dashboard-title">
           Welcome, {user?.firstName || "User"}
         </h1>
-        <p className="text-muted-foreground mt-2">
-          Overview of inventory health and ongoing audits.
-          <Badge variant="secondary" className="ml-2">{roleLabel[role] || role}</Badge>
-        </p>
+        <div className="text-muted-foreground mt-2 flex items-center flex-wrap gap-2">
+          <span>Overview of inventory health and ongoing audits.</span>
+          <Badge variant="secondary">{roleLabel[role] || role}</Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -156,35 +218,6 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-
-      {activeAnnouncements.length > 0 && (
-        <div>
-          <h3 className="font-display font-bold text-lg mb-4 flex items-center gap-2">
-            <Megaphone className="w-5 h-5 text-blue-500" />
-            Pengumuman
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {activeAnnouncements.map((announcement) => (
-              <Card key={announcement.id} className="p-6 hover-elevate" data-testid={`card-announcement-${announcement.id}`}>
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-foreground text-base">{announcement.title}</h4>
-                  <p className="text-sm text-muted-foreground">{announcement.content}</p>
-                  <div className="flex items-center justify-between pt-2 border-t border-border/50">
-                    <span className="text-xs text-muted-foreground">
-                      {format(new Date(announcement.createdAt), 'dd MMM yyyy')}
-                    </span>
-                    {announcement.expiresAt && (
-                      <span className="text-xs text-orange-600 font-medium">
-                        Berlaku hingga {format(new Date(announcement.expiresAt), 'dd MMM yyyy')}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
