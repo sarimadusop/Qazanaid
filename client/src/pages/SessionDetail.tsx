@@ -625,27 +625,33 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
     }
   };
 
+  const [isUploading, setIsUploading] = useState(false);
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    const fileArray = Array.from(files);
 
     try {
-      const compressed = await compressImage(file);
-      uploadPhoto.mutate({
-        sessionId,
-        productId: record.productId,
-        file: compressed,
-      });
-    } catch {
-      uploadPhoto.mutate({
-        sessionId,
-        productId: record.productId,
-        file,
-      });
-    }
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+      for (const file of fileArray) {
+        let fileToUpload: File = file;
+        try {
+          fileToUpload = await compressImage(file);
+        } catch {}
+        await new Promise<void>((resolve) => {
+          uploadPhoto.mutate(
+            { sessionId, productId: record.productId, file: fileToUpload },
+            { onSuccess: () => resolve(), onError: () => resolve() }
+          );
+        });
+      }
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -782,6 +788,7 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
                 <input
                   type="file"
                   accept="image/*"
+                  multiple
                   className="hidden"
                   ref={fileInputRef}
                   onChange={handlePhotoUpload}
@@ -791,10 +798,10 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
                   variant="outline"
                   size="icon"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadPhoto.isPending}
+                  disabled={isUploading}
                   data-testid={`button-upload-photo-${record.productId}`}
                 >
-                  {uploadPhoto.isPending ? (
+                  {isUploading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <Plus className="w-4 h-4" />
