@@ -7,7 +7,7 @@ A full-stack inventory management application for stock opname (stock counting/a
 - **2026-02-13**: Announcement popup - active announcements show as popup dialog when user opens the app
 - **2026-02-13**: Selective ZIP download dialog (filter by product or date) using POST endpoint
 - **2026-02-13**: Bulk delete products (checkbox selection, select all, confirm dialog)
-- **2026-02-13**: Category priority ordering (admin configurable, affects product display order)
+- **2026-02-13**: Category priority ordering per-user (all users including stock counter can set their own order, falls back to admin's order)
 - **2026-02-12**: Added location-based access (Toko/Gudang) for products and sessions
 - **2026-02-12**: New roles: stock_counter_toko (only toko), stock_counter_gudang (only gudang)
 - **2026-02-12**: Multi-photo support per product and per opname record with client-side compression
