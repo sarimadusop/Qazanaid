@@ -16,7 +16,7 @@ A full-stack inventory management application for stock opname (stock counting/a
 - **2026-02-12**: Announcements page (admin-only), displayed on Dashboard
 - **2026-02-12**: Kritik & Saran (Feedback) page for all users
 - **2026-02-12**: Motivation Messages page (admin-only) - customizable messages for SO dialog
-- **2026-02-12**: Photos auto-delete after 7 days, stored in /uploads directory
+- **2026-02-13**: Disabled auto-delete photos (was 7 days), photos now stored permanently in /uploads directory
 - **2026-02-12**: Photo compression before upload (max 1200px, 0.7 quality JPEG)
 - **2026-02-11**: Switched to username/password auth (bcryptjs). Every registered user is admin (superuser). Admin can create sub-users from Role Management page.
 - **2026-02-11**: Team-based data isolation: admin creates sub-users, all team members see admin's data.
