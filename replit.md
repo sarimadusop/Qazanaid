@@ -19,6 +19,7 @@ A full-stack inventory management application for stock opname (stock counting/a
 - **2026-02-12**: Kritik & Saran (Feedback) page for all users
 - **2026-02-12**: Motivation Messages page (admin-only) - customizable messages for SO dialog
 - **2026-02-16**: Migrated photo storage from local /uploads to Replit Object Storage for permanent persistence across server restarts. Old /uploads URLs still served for backward compatibility.
+- **2026-02-16**: Database migrated to Supabase - server/db.ts uses SUPABASE_DATABASE_URL as primary, falls back to DATABASE_URL. Schema synced via drizzle-kit push. All data (553 products, 1392 photos, 4406 opname records, 8 users) preserved.
 - **2026-02-13**: Disabled auto-delete photos (was 7 days), photos now stored permanently
 - **2026-02-12**: Photo compression before upload (max 1200px, 0.7 quality JPEG)
 - **2026-02-11**: Switched to username/password auth (bcryptjs). Every registered user is admin (superuser). Admin can create sub-users from Role Management page.
