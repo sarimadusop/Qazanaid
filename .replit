@@ -45,3 +45,6 @@ integrations = ["javascript_log_in_with_replit:2.0.0", "javascript_object_storag
 
 [userenv.shared]
 SUPABASE_DATABASE_URL = "postgresql://postgres.vvnjsyajcqhudwdnlkzq:Sarimadu2017@aws-1-ap-south-1.pooler.supabase.com:5432/postgres"
+
+[objectStorage]
+defaultBucketID = "replit-objstore-494ef174-37c8-42f2-a8d4-0f25c07d564a"
