@@ -674,7 +674,24 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
     <>
       <tr className={cn("transition-colors", isFocused ? "bg-blue-50/50" : "hover:bg-muted/10")} data-testid={`row-record-${record.id}`}>
         <td className="px-6 py-4 font-mono text-muted-foreground">{record.product.sku}</td>
-        <td className="px-6 py-4 font-medium text-foreground">{record.product.name}</td>
+        <td className="px-6 py-4">
+          <div className="flex items-center gap-2">
+            {record.product.photos && record.product.photos.length > 0 ? (
+              <img
+                src={record.product.photos[0].url}
+                alt={record.product.name}
+                className="w-8 h-8 rounded-md object-cover flex-shrink-0"
+                loading="lazy"
+                onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden'); }}
+                data-testid={`img-product-photo-${record.productId}`}
+              />
+            ) : null}
+            <div className={cn("w-8 h-8 rounded-md bg-muted/30 flex items-center justify-center flex-shrink-0", record.product.photos && record.product.photos.length > 0 ? "hidden" : "")} data-testid={`img-product-placeholder-${record.productId}`}>
+              <Image className="w-4 h-4 text-muted-foreground/50" />
+            </div>
+            <span className="font-medium text-foreground">{record.product.name}</span>
+          </div>
+        </td>
         <td className="px-6 py-4 text-muted-foreground">{record.product.category || "-"}</td>
         <td className="px-6 py-3">
           {readOnly ? (
