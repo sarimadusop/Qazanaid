@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import path from "path";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
 const app = express();
 const httpServer = createServer(app);
@@ -24,6 +25,8 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+registerObjectStorageRoutes(app);
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {

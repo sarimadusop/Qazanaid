@@ -12,15 +12,21 @@ import { authStorage } from "./replit_integrations/auth/storage";
 import archiver from "archiver";
 import { productPhotos, opnameRecordPhotos } from "@shared/schema";
 import { db } from "./db";
+import { ObjectStorageService, ObjectNotFoundError } from "./replit_integrations/object_storage";
 
 
 const upload = multer({ dest: "/tmp/uploads", limits: { fileSize: 10 * 1024 * 1024 } });
-const uploadsDir = path.join(process.cwd(), "uploads");
+const objectStorage = new ObjectStorageService();
 
-function ensureUploadsDir() {
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
+async function uploadToObjectStorage(file: Express.Multer.File): Promise<string> {
+  const fileBuffer = fs.readFileSync(file.path);
+  const url = await objectStorage.uploadFileFromServer(
+    fileBuffer,
+    file.originalname,
+    file.mimetype || "application/octet-stream"
+  );
+  fs.unlinkSync(file.path);
+  return url;
 }
 
 function getUserId(req: Request): string {
@@ -60,8 +66,6 @@ export async function registerRoutes(
 
   await setupAuth(app);
   registerAuthRoutes(app);
-
-  ensureUploadsDir();
 
   // === Roles ===
   app.get(api.roles.me.path, isAuthenticated, async (req, res) => {
@@ -235,16 +239,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      const safeName = product.name.replace(/[^a-zA-Z0-9]/g, "_");
-      const ext = path.extname(req.file.originalname) || ".jpg";
-      const filename = `${safeName}_${Date.now()}${ext}`;
-
-      ensureUploadsDir();
-      const destPath = path.join(uploadsDir, filename);
-      fs.copyFileSync(req.file.path, destPath);
-      fs.unlinkSync(req.file.path);
-
-      const url = `/uploads/${filename}`;
+      const url = await uploadToObjectStorage(req.file);
       const photo = await storage.addProductPhoto({ productId, url });
 
       res.status(201).json(photo);
@@ -262,17 +257,6 @@ export async function registerRoutes(
       const product = await storage.getProduct(productId);
       if (!product || product.userId !== adminId) {
         return res.status(404).json({ message: "Product not found" });
-      }
-
-      const photos = await storage.getProductPhotos(productId);
-      const photo = photos.find(p => p.id === photoId);
-      if (!photo) {
-        return res.status(404).json({ message: "Photo not found" });
-      }
-
-      const filePath = path.join(process.cwd(), photo.url.replace(/^\//, ""));
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
       }
 
       await storage.deleteProductPhoto(photoId);
@@ -374,16 +358,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      const safeName = product.name.replace(/[^a-zA-Z0-9]/g, "_");
-      const ext = path.extname(req.file.originalname) || ".jpg";
-      const filename = `${safeName}_${Date.now()}${ext}`;
-
-      ensureUploadsDir();
-      const destPath = path.join(uploadsDir, filename);
-      fs.copyFileSync(req.file.path, destPath);
-      fs.unlinkSync(req.file.path);
-
-      const url = `/uploads/${filename}`;
+      const url = await uploadToObjectStorage(req.file);
       await storage.updateProduct(productId, { photoUrl: url });
 
       res.json({ url });
@@ -414,16 +389,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      const safeName = product.name.replace(/[^a-zA-Z0-9]/g, "_");
-      const ext = path.extname(req.file.originalname) || ".jpg";
-      const filename = `${safeName}_SO_${Date.now()}${ext}`;
-
-      ensureUploadsDir();
-      const destPath = path.join(uploadsDir, filename);
-      fs.copyFileSync(req.file.path, destPath);
-      fs.unlinkSync(req.file.path);
-
-      const url = `/uploads/${filename}`;
+      const url = await uploadToObjectStorage(req.file);
       await storage.updateRecordPhoto(sessionId, productId, url);
 
       res.json({ url });
@@ -454,18 +420,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      const safeName = product.name.replace(/[^a-zA-Z0-9]/g, "_");
-      const ext = path.extname(req.file.originalname) || ".jpg";
-      const filename = `${safeName}_SO_${Date.now()}${ext}`;
-
-      ensureUploadsDir();
-      const destPath = path.join(uploadsDir, filename);
-      fs.copyFileSync(req.file.path, destPath);
-      fs.unlinkSync(req.file.path);
-
-      const url = `/uploads/${filename}`;
-
-      await storage.addProductPhoto({ productId, url });
+      const url = await uploadToObjectStorage(req.file);
 
       const record = session.records.find(r => r.productId === productId);
       if (record) {
@@ -553,30 +508,37 @@ export async function registerRoutes(
       for (const record of recordsWithPhotos) {
         const safeName = record.product.name.replace(/[^a-zA-Z0-9]/g, "_");
 
-        if (record.photos && record.photos.length > 0) {
-          for (let i = 0; i < record.photos.length; i++) {
-            const photo = record.photos[i];
-            const relativePath = photo.url.replace(/^\//, "");
+        const appendPhotoToArchive = async (photoUrl: string, zipFilename: string) => {
+          if (photoUrl.startsWith("/objects/")) {
+            const result = await objectStorage.getObjectStream(photoUrl);
+            if (result) {
+              archive.append(result.stream as any, { name: zipFilename });
+            }
+          } else {
+            const relativePath = photoUrl.replace(/^\//, "");
             const filePath = path.join(process.cwd(), relativePath);
             if (fs.existsSync(filePath)) {
-              const ext = path.extname(photo.url) || ".jpg";
-              const photoDate = new Date(photo.createdAt);
-              const dateStr = `${photoDate.getFullYear()}${String(photoDate.getMonth() + 1).padStart(2, '0')}${String(photoDate.getDate()).padStart(2, '0')}`;
-              const suffix = record.photos.length > 1 ? `_${i + 1}` : "";
-              const zipFilename = `${safeTitle}/${safeName}_${dateStr}${suffix}${ext}`;
               archive.file(filePath, { name: zipFilename });
             }
           }
-        } else if (record.photoUrl) {
-          const relativePath = record.photoUrl.replace(/^\//, "");
-          const filePath = path.join(process.cwd(), relativePath);
-          if (fs.existsSync(filePath)) {
-            const ext = path.extname(record.photoUrl) || ".jpg";
-            const startDate = new Date(session.startedAt);
-            const dateStr = `${startDate.getFullYear()}${String(startDate.getMonth() + 1).padStart(2, '0')}${String(startDate.getDate()).padStart(2, '0')}`;
-            const zipFilename = `${safeTitle}/${safeName}_${dateStr}${ext}`;
-            archive.file(filePath, { name: zipFilename });
+        };
+
+        if (record.photos && record.photos.length > 0) {
+          for (let i = 0; i < record.photos.length; i++) {
+            const photo = record.photos[i];
+            const ext = path.extname(photo.url) || ".jpg";
+            const photoDate = new Date(photo.createdAt);
+            const dateStr = `${photoDate.getFullYear()}${String(photoDate.getMonth() + 1).padStart(2, '0')}${String(photoDate.getDate()).padStart(2, '0')}`;
+            const suffix = record.photos.length > 1 ? `_${i + 1}` : "";
+            const zipFilename = `${safeTitle}/${safeName}_${dateStr}${suffix}${ext}`;
+            await appendPhotoToArchive(photo.url, zipFilename);
           }
+        } else if (record.photoUrl) {
+          const ext = path.extname(record.photoUrl) || ".jpg";
+          const startDate = new Date(session.startedAt);
+          const dateStr = `${startDate.getFullYear()}${String(startDate.getMonth() + 1).padStart(2, '0')}${String(startDate.getDate()).padStart(2, '0')}`;
+          const zipFilename = `${safeTitle}/${safeName}_${dateStr}${ext}`;
+          await appendPhotoToArchive(record.photoUrl, zipFilename);
         }
       }
 
@@ -756,13 +718,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      const ext = path.extname(file.originalname).toLowerCase() || ".jpg";
-      const safeName = `announcement_${id}_${Date.now()}${ext}`;
-      const destPath = path.join(uploadsDir, safeName);
-      fs.copyFileSync(file.path, destPath);
-      fs.unlinkSync(file.path);
-
-      const url = `/uploads/${safeName}`;
+      const url = await uploadToObjectStorage(file);
       const announcement = await storage.updateAnnouncement(id, { imageUrl: url });
       res.json(announcement);
     } catch (err) {
@@ -997,7 +953,7 @@ export async function registerRoutes(
           if (satuanRaw) {
             const unitNames = satuanRaw.split(",").map(s => s.trim()).filter(Boolean);
             for (let j = 0; j < unitNames.length; j++) {
-              await storage.createProductUnit({
+              await storage.addProductUnit({
                 productId: product.id,
                 unitName: unitNames[j],
                 conversionToBase: 1,
