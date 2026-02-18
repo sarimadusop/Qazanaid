@@ -19,6 +19,7 @@ import {
   type ExcelImportResult,
 } from "@/hooks/use-products";
 import { BatchPhotoUpload } from "@/components/BatchPhotoUpload";
+import { useBackgroundUpload } from "@/components/BackgroundUpload";
 import { useRole } from "@/hooks/use-role";
 import { api } from "@shared/routes";
 import type { Product, ProductPhoto, ProductUnit } from "@shared/schema";
@@ -902,15 +903,17 @@ function PhotoGalleryDialog({
   const deletePhoto = useDeleteProductPhoto();
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
   const [batchOpen, setBatchOpen] = useState(false);
+  const { addUploadJob } = useBackgroundUpload();
 
   const handleBatchUpload = useCallback(async (files: File[]) => {
     if (!productId) return;
-    for (const file of files) {
-      await new Promise<void>((resolve) => {
-        uploadPhoto.mutate({ productId, file }, { onSuccess: () => resolve(), onError: () => resolve() });
+    const pid = productId;
+    addUploadJob("Foto Produk", files, (file) => {
+      return new Promise<void>((resolve, reject) => {
+        uploadPhoto.mutate({ productId: pid, file }, { onSuccess: () => resolve(), onError: (err) => reject(err) });
       });
-    }
-  }, [productId, uploadPhoto]);
+    });
+  }, [productId, uploadPhoto, addUploadJob]);
 
   return (
     <>

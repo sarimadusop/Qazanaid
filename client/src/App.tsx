@@ -18,6 +18,7 @@ import Announcements from "@/pages/Announcements";
 import FeedbackPage from "@/pages/FeedbackPage";
 import MotivationPage from "@/pages/MotivationPage";
 import NotFound from "@/pages/not-found";
+import { BackgroundUploadProvider } from "@/components/BackgroundUpload";
 import { Loader2, Package, AlertCircle, Info, Megaphone, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -362,8 +363,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Router />
+        <BackgroundUploadProvider>
+          <Toaster />
+          <Router />
+        </BackgroundUploadProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

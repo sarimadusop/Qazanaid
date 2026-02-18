@@ -4,6 +4,7 @@ import { useRole } from "@/hooks/use-role";
 import { useParams, useLocation } from "wouter";
 import { ArrowLeft, CheckCircle2, Download, Search, Loader2, Filter, Camera, Image, X, FileArchive, Trash2, Plus, Printer, MapPin, User, CalendarDays, CheckSquare, ListOrdered, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
 import { BatchPhotoUpload } from "@/components/BatchPhotoUpload";
+import { useBackgroundUpload } from "@/components/BackgroundUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -641,17 +642,21 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
   };
 
   const [batchPhotoOpen, setBatchPhotoOpen] = useState(false);
+  const { addUploadJob } = useBackgroundUpload();
 
   const handleBatchUpload = useCallback(async (files: File[]) => {
-    for (const file of files) {
-      await new Promise<void>((resolve) => {
+    const sid = sessionId;
+    const pid = record.productId;
+    const label = record.product.name;
+    addUploadJob(label, files, (file) => {
+      return new Promise<void>((resolve, reject) => {
         uploadPhoto.mutate(
-          { sessionId, productId: record.productId, file },
-          { onSuccess: () => resolve(), onError: () => resolve() }
+          { sessionId: sid, productId: pid, file },
+          { onSuccess: () => resolve(), onError: (err) => reject(err) }
         );
       });
-    }
-  }, [uploadPhoto, sessionId, record.productId]);
+    });
+  }, [uploadPhoto, sessionId, record.productId, record.product.name, addUploadJob]);
 
   const handleDeletePhoto = (photoId: number) => {
     deletePhoto.mutate({
