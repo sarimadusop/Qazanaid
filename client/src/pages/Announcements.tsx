@@ -100,11 +100,17 @@ function AnnouncementCard({ announcement, onEdit }: { announcement: any; onEdit:
   return (
     <Card className="flex flex-col overflow-visible hover-elevate" data-testid={`card-announcement-${announcement.id}`}>
       {announcement.imageUrl && (
-        <div className="w-full aspect-video overflow-hidden rounded-t-md">
+        <div className="w-full aspect-video overflow-hidden rounded-t-md relative">
+          <img
+            src={announcement.imageUrl}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 w-full h-full object-cover scale-110 blur-xl opacity-60"
+          />
           <img
             src={announcement.imageUrl}
             alt={announcement.title}
-            className="w-full h-full object-cover"
+            className="relative w-full h-full object-contain z-10"
             data-testid={`img-announcement-${announcement.id}`}
           />
         </div>

@@ -1051,6 +1051,218 @@ export async function registerRoutes(
     }
   });
 
+  app.post(api.excel.gudangTemplate.path, isAuthenticated, requireRole("admin", "sku_manager"), (req, res) => {
+    try {
+      const { units, conversions } = req.body as {
+        units: string[];
+        conversions: { fromUnit: string; amount: number; toUnit: string }[];
+      };
+
+      if (!units || units.length === 0) {
+        return res.status(400).json({ message: "Minimal 1 satuan harus dipilih" });
+      }
+
+      const wb = XLSX.utils.book_new();
+
+      const headers = ["Nama Produk", "Kode Produk", "Kategori", "Sub Kategori", ...units];
+      const exampleRow = ["Contoh Produk", "GDG-001", "Makanan", "Snack", ...units.map(() => 0)];
+      const ws = XLSX.utils.aoa_to_sheet([headers, exampleRow]);
+      const colWidths = [{ wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, ...units.map(() => ({ wch: 12 }))];
+      ws["!cols"] = colWidths;
+      XLSX.utils.book_append_sheet(wb, ws, "Data Produk Gudang");
+
+      const convHeaders = ["Satuan Besar", "Jumlah", "Satuan Kecil"];
+      const convRows = conversions.map(c => [c.fromUnit, c.amount, c.toUnit]);
+      const wsConv = XLSX.utils.aoa_to_sheet([convHeaders, ...convRows]);
+      wsConv["!cols"] = [{ wch: 18 }, { wch: 10 }, { wch: 18 }];
+      XLSX.utils.book_append_sheet(wb, wsConv, "Tabel Konversi Satuan");
+
+      const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+      res.setHeader("Content-Disposition", "attachment; filename=template_gudang.xlsx");
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.send(buf);
+    } catch (err) {
+      console.error("Gudang template error:", err);
+      res.status(500).json({ message: "Gagal membuat template gudang" });
+    }
+  });
+
+  app.post(api.excel.gudangExport.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
+    try {
+      const { units, conversions } = req.body as {
+        units: string[];
+        conversions: { fromUnit: string; amount: number; toUnit: string }[];
+      };
+
+      if (!units || units.length === 0) {
+        return res.status(400).json({ message: "Minimal 1 satuan harus dipilih" });
+      }
+
+      const adminId = await getTeamAdminId(req);
+      const productsWithUnits = await storage.getProductsWithPhotosAndUnits(adminId);
+      const gudangProducts = productsWithUnits.filter(p => p.locationType === "gudang");
+
+      const wb = XLSX.utils.book_new();
+
+      const headers = ["Nama Produk", "Kode Produk", "Kategori", "Sub Kategori", ...units];
+      const rows = gudangProducts.map(p => {
+        const unitCols = units.map(() => 0);
+        return [
+          p.name,
+          p.productCode || "",
+          p.category || "",
+          p.subCategory || "",
+          ...unitCols,
+        ];
+      });
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      const colWidths = [{ wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, ...units.map(() => ({ wch: 12 }))];
+      ws["!cols"] = colWidths;
+      XLSX.utils.book_append_sheet(wb, ws, "Data Produk Gudang");
+
+      const convHeaders = ["Satuan Besar", "Jumlah", "Satuan Kecil"];
+      const convRows = conversions.map(c => [c.fromUnit, c.amount, c.toUnit]);
+      const wsConv = XLSX.utils.aoa_to_sheet([convHeaders, ...convRows]);
+      wsConv["!cols"] = [{ wch: 18 }, { wch: 10 }, { wch: 18 }];
+      XLSX.utils.book_append_sheet(wb, wsConv, "Tabel Konversi Satuan");
+
+      const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+      res.setHeader("Content-Disposition", "attachment; filename=export_gudang.xlsx");
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.send(buf);
+    } catch (err) {
+      console.error("Gudang export error:", err);
+      res.status(500).json({ message: "Gagal export gudang" });
+    }
+  });
+
+  app.post(api.excel.gudangImport.path, isAuthenticated, requireRole("admin", "sku_manager"), upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const fileBuffer = fs.readFileSync(req.file.path);
+      fs.unlinkSync(req.file.path);
+      const wb = XLSX.read(fileBuffer, { type: "buffer" });
+
+      const wsData = wb.Sheets["Data Produk Gudang"] || wb.Sheets[wb.SheetNames[0]];
+      if (!wsData) {
+        return res.status(400).json({ message: "Sheet 'Data Produk Gudang' tidak ditemukan" });
+      }
+
+      const dataRows: any[][] = XLSX.utils.sheet_to_json(wsData, { header: 1 });
+      if (dataRows.length < 2) {
+        return res.status(400).json({ message: "File kosong atau tidak memiliki data" });
+      }
+
+      const conversionMap: { fromUnit: string; amount: number; toUnit: string }[] = [];
+      const wsConv = wb.Sheets["Tabel Konversi Satuan"];
+      if (wsConv) {
+        const convRows: any[][] = XLSX.utils.sheet_to_json(wsConv, { header: 1 });
+        for (let i = 1; i < convRows.length; i++) {
+          const row = convRows[i];
+          if (row && row[0] && row[1] && row[2]) {
+            conversionMap.push({
+              fromUnit: String(row[0]).trim(),
+              amount: parseFloat(String(row[1])) || 1,
+              toUnit: String(row[2]).trim(),
+            });
+          }
+        }
+      }
+
+      const headerRow = dataRows[0] || [];
+      const unitColumns: string[] = [];
+      for (let c = 4; c < headerRow.length; c++) {
+        const h = String(headerRow[c] || "").trim();
+        if (h) unitColumns.push(h);
+      }
+
+      const adminId = await getTeamAdminId(req);
+      const existingProducts = await storage.getProducts(adminId);
+      const existingSkus = new Set(existingProducts.map(p => p.sku.toLowerCase()));
+      const existingProductCodes = new Set(existingProducts.filter(p => p.productCode).map(p => p.productCode!.toLowerCase()));
+
+      let imported = 0;
+      let skipped = 0;
+      const errors: { row: number; message: string }[] = [];
+
+      for (let i = 1; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        if (!row || row.length === 0 || row.every((cell: any) => cell === undefined || cell === null || cell === "")) {
+          continue;
+        }
+
+        const name = String(row[0] || "").trim();
+        const productCode = String(row[1] || "").trim();
+        const category = String(row[2] || "").trim() || null;
+        const subCategory = String(row[3] || "").trim() || null;
+
+        if (!name) {
+          errors.push({ row: i + 1, message: "Nama Produk wajib diisi" });
+          skipped++;
+          continue;
+        }
+
+        const sku = productCode || `GDG-${Date.now()}-${i}`;
+
+        if (existingSkus.has(sku.toLowerCase())) {
+          errors.push({ row: i + 1, message: `Produk "${name}" (kode: ${sku}) sudah ada` });
+          skipped++;
+          continue;
+        }
+
+        if (productCode && existingProductCodes.has(productCode.toLowerCase())) {
+          errors.push({ row: i + 1, message: `Kode Produk "${productCode}" sudah ada` });
+          skipped++;
+          continue;
+        }
+
+        try {
+          const product = await storage.createProduct({
+            sku,
+            name,
+            category,
+            description: null,
+            currentStock: 0,
+            photoUrl: null,
+            userId: adminId,
+            locationType: "gudang",
+            subCategory,
+            productCode: productCode || null,
+          });
+          existingSkus.add(sku.toLowerCase());
+          if (productCode) existingProductCodes.add(productCode.toLowerCase());
+
+          if (unitColumns.length > 0) {
+            for (let j = 0; j < unitColumns.length; j++) {
+              const unitName = unitColumns[j];
+              const conv = conversionMap.find(c => c.fromUnit.toLowerCase() === unitName.toLowerCase());
+              await storage.addProductUnit({
+                productId: product.id,
+                unitName,
+                conversionToBase: conv ? conv.amount : 1,
+                baseUnit: conv ? conv.toUnit : unitName,
+                sortOrder: j,
+              });
+            }
+          }
+
+          imported++;
+        } catch (err) {
+          errors.push({ row: i + 1, message: "Gagal menyimpan produk" });
+          skipped++;
+        }
+      }
+
+      res.json({ imported, skipped, errors, format: "gudang-template", conversions: conversionMap.length });
+    } catch (err) {
+      console.error("Gudang import error:", err);
+      res.status(500).json({ message: "Gagal memproses file Excel gudang" });
+    }
+  });
+
   app.get(api.excel.export.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
     try {
       const adminId = await getTeamAdminId(req);

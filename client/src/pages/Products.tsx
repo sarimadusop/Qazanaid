@@ -47,6 +47,7 @@ import {
   AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { queryClient } from "@/lib/queryClient";
 
 function getDefaultProductTab(role: string): string {
   if (role === "stock_counter_toko") return "toko";
@@ -74,9 +75,14 @@ export default function Products() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [categoryPriorityOpen, setCategoryPriorityOpen] = useState(false);
+  const [gudangTemplateOpen, setGudangTemplateOpen] = useState(false);
+  const [gudangExportOpen, setGudangExportOpen] = useState(false);
+  const [gudangImportLoading, setGudangImportLoading] = useState(false);
   const importExcel = useImportExcel();
   const bulkDelete = useBulkDeleteProducts();
   const excelInputRef = useRef<HTMLInputElement>(null);
+  const gudangImportRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -88,6 +94,36 @@ export default function Products() {
         },
       });
       e.target.value = "";
+    }
+  };
+
+  const handleGudangImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setGudangImportLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(api.excel.gudangImport.path, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Gagal import");
+      }
+      const result = await res.json();
+      setImportResult(result);
+      setIsImportResultOpen(true);
+      queryClient.invalidateQueries({ queryKey: [api.products.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.products.categories.path] });
+      queryClient.invalidateQueries({ queryKey: [api.products.withDetails.path] });
+    } catch (err: any) {
+      toast({ title: "Import Gagal", description: err.message, variant: "destructive" });
+    } finally {
+      setGudangImportLoading(false);
     }
   };
 
@@ -153,43 +189,87 @@ export default function Products() {
             )}
             {canManageSku && (
               <>
-                <Button
-                  variant="outline"
-                  onClick={() => window.open(api.excel.template.path, "_blank")}
-                  data-testid="button-download-template"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Template
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => excelInputRef.current?.click()}
-                  disabled={importExcel.isPending}
-                  data-testid="button-import-excel"
-                >
-                  {importExcel.isPending ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <FileSpreadsheet className="w-4 h-4 mr-2" />
-                  )}
-                  Import Excel
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => window.open(api.excel.export.path, "_blank")}
-                  data-testid="button-export-excel"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export Excel
-                </Button>
-                <input
-                  ref={excelInputRef}
-                  type="file"
-                  accept=".xlsx,.xls"
-                  className="hidden"
-                  onChange={handleExcelUpload}
-                  data-testid="input-excel-file"
-                />
+                {locationType === "gudang" ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => setGudangTemplateOpen(true)}
+                      data-testid="button-gudang-template"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Template Gudang
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => gudangImportRef.current?.click()}
+                      disabled={gudangImportLoading}
+                      data-testid="button-gudang-import"
+                    >
+                      {gudangImportLoading ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <FileSpreadsheet className="w-4 h-4 mr-2" />
+                      )}
+                      Import Gudang
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setGudangExportOpen(true)}
+                      data-testid="button-gudang-export"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export Gudang
+                    </Button>
+                    <input
+                      ref={gudangImportRef}
+                      type="file"
+                      accept=".xlsx,.xls"
+                      className="hidden"
+                      onChange={handleGudangImport}
+                      data-testid="input-gudang-import-file"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => window.open(api.excel.template.path, "_blank")}
+                      data-testid="button-download-template"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Template
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => excelInputRef.current?.click()}
+                      disabled={importExcel.isPending}
+                      data-testid="button-import-excel"
+                    >
+                      {importExcel.isPending ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <FileSpreadsheet className="w-4 h-4 mr-2" />
+                      )}
+                      Import Excel
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => window.open(api.excel.export.path, "_blank")}
+                      data-testid="button-export-excel"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export Excel
+                    </Button>
+                    <input
+                      ref={excelInputRef}
+                      type="file"
+                      accept=".xlsx,.xls"
+                      className="hidden"
+                      onChange={handleExcelUpload}
+                      data-testid="input-excel-file"
+                    />
+                  </>
+                )}
                 <CreateProductDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} />
               </>
             )}
@@ -274,6 +354,18 @@ export default function Products() {
         open={categoryPriorityOpen}
         onOpenChange={setCategoryPriorityOpen}
         categories={categories ?? []}
+      />
+
+      <GudangExcelDialog
+        open={gudangTemplateOpen}
+        onOpenChange={setGudangTemplateOpen}
+        mode="template"
+      />
+
+      <GudangExcelDialog
+        open={gudangExportOpen}
+        onOpenChange={setGudangExportOpen}
+        mode="export"
       />
 
       <div className="bg-card border border-border rounded-md overflow-hidden">
@@ -1313,6 +1405,194 @@ function CategoryPriorityDialog({ open, onOpenChange, categories }: {
           <Button onClick={handleSave} disabled={setCategoryPriorities.isPending} data-testid="button-save-category-priority">
             {setCategoryPriorities.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
             Simpan Urutan
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface ConversionRow {
+  fromUnit: string;
+  amount: number;
+  toUnit: string;
+}
+
+function GudangExcelDialog({ open, onOpenChange, mode }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  mode: "template" | "export";
+}) {
+  const [units, setUnits] = useState<string[]>(["Dus", "Pack", "Pcs"]);
+  const [newUnit, setNewUnit] = useState("");
+  const [conversions, setConversions] = useState<ConversionRow[]>([
+    { fromUnit: "Dus", amount: 24, toUnit: "Pack" },
+    { fromUnit: "Pack", amount: 10, toUnit: "Pcs" },
+  ]);
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+
+  const addUnit = () => {
+    const trimmed = newUnit.trim();
+    if (!trimmed) return;
+    if (units.some(u => u.toLowerCase() === trimmed.toLowerCase())) {
+      toast({ title: "Satuan sudah ada", variant: "destructive" });
+      return;
+    }
+    setUnits(prev => [...prev, trimmed]);
+    setNewUnit("");
+  };
+
+  const removeUnit = (index: number) => {
+    const removed = units[index];
+    setUnits(prev => prev.filter((_, i) => i !== index));
+    setConversions(prev => prev.filter(c => c.fromUnit !== removed && c.toUnit !== removed));
+  };
+
+  const addConversion = () => {
+    if (units.length < 2) return;
+    setConversions(prev => [...prev, { fromUnit: units[0], amount: 1, toUnit: units[1] || units[0] }]);
+  };
+
+  const updateConversion = (index: number, field: keyof ConversionRow, value: string | number) => {
+    setConversions(prev => prev.map((c, i) => i === index ? { ...c, [field]: value } : c));
+  };
+
+  const removeConversion = (index: number) => {
+    setConversions(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async () => {
+    if (units.length === 0) {
+      toast({ title: "Tambahkan minimal 1 satuan", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    try {
+      const endpoint = mode === "template" ? api.excel.gudangTemplate.path : api.excel.gudangExport.path;
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ units, conversions }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Gagal");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = mode === "template" ? "template_gudang.xlsx" : "export_gudang.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+      onOpenChange(false);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[550px]">
+        <DialogHeader>
+          <DialogTitle>
+            {mode === "template" ? "Template Excel Gudang" : "Export Excel Gudang"}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">Daftar Satuan</label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Tentukan satuan yang akan menjadi kolom di Excel. Urutan dari besar ke kecil.
+            </p>
+            <div className="space-y-1.5 mb-2">
+              {units.map((unit, index) => (
+                <div key={index} className="flex items-center gap-2 p-2 rounded-md border border-border/50" data-testid={`unit-row-${index}`}>
+                  <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate text-xs">
+                    #{index + 1}
+                  </Badge>
+                  <span className="text-sm font-medium flex-1">{unit}</span>
+                  <Button variant="ghost" size="icon" onClick={() => removeUnit(index)} data-testid={`button-remove-unit-${index}`}>
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Nama satuan baru (cth: Karton)"
+                value={newUnit}
+                onChange={(e) => setNewUnit(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addUnit(); } }}
+                data-testid="input-new-unit"
+              />
+              <Button variant="outline" onClick={addUnit} data-testid="button-add-unit">
+                <Plus className="w-4 h-4 mr-1" />
+                Tambah
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">Tabel Konversi Satuan</label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Tentukan konversi antar satuan. Contoh: 1 Dus = 24 Pack
+            </p>
+            <div className="space-y-2 mb-2">
+              {conversions.map((conv, index) => (
+                <div key={index} className="flex items-center gap-2 flex-wrap" data-testid={`conversion-row-${index}`}>
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">1</span>
+                  <Select value={conv.fromUnit} onValueChange={(v) => updateConversion(index, "fromUnit", v)}>
+                    <SelectTrigger className="w-24" data-testid={`select-from-unit-${index}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border border-border">
+                      {units.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-sm text-muted-foreground">=</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    className="w-20"
+                    value={conv.amount}
+                    onChange={(e) => updateConversion(index, "amount", parseFloat(e.target.value) || 1)}
+                    data-testid={`input-conv-amount-${index}`}
+                  />
+                  <Select value={conv.toUnit} onValueChange={(v) => updateConversion(index, "toUnit", v)}>
+                    <SelectTrigger className="w-24" data-testid={`select-to-unit-${index}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border border-border">
+                      {units.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="ghost" size="icon" onClick={() => removeConversion(index)} data-testid={`button-remove-conv-${index}`}>
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            {units.length >= 2 && (
+              <Button variant="outline" size="sm" onClick={addConversion} data-testid="button-add-conversion">
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Tambah Konversi
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-gudang-excel">
+            Batal
+          </Button>
+          <Button onClick={handleSubmit} disabled={loading || units.length === 0} data-testid="button-submit-gudang-excel">
+            {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Download className="w-4 h-4 mr-2" />}
+            {mode === "template" ? "Download Template" : "Export Data"}
           </Button>
         </div>
       </DialogContent>
