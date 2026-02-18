@@ -159,15 +159,14 @@ export function BatchPhotoUpload({ open, onOpenChange, onUpload, title = "Ambil 
         const compressed = await compressImage(file);
         files.push(compressed);
       }
-      await onUpload(files);
-      if (!mountedRef.current) return;
       photos.forEach(p => URL.revokeObjectURL(p.previewUrl));
       setPhotos([]);
       stopCamera();
       onOpenChange(false);
+      onUpload(files);
     } catch (err) {
       if (mountedRef.current) {
-        toast({ title: "Upload Gagal", description: "Terjadi kesalahan saat mengupload foto.", variant: "destructive" });
+        toast({ title: "Gagal Memproses", description: "Terjadi kesalahan saat memproses foto.", variant: "destructive" });
       }
     } finally {
       if (mountedRef.current) setIsUploading(false);
