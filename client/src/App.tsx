@@ -268,7 +268,7 @@ function AnnouncementPopup() {
         </DialogHeader>
         <div className="py-3 space-y-3">
           {current.imageUrl && (
-            <div className="w-full rounded-md overflow-hidden relative max-h-[300px]">
+            <div className="w-full rounded-md overflow-hidden relative aspect-square">
               <img
                 src={current.imageUrl}
                 alt=""
@@ -278,7 +278,7 @@ function AnnouncementPopup() {
               <img
                 src={current.imageUrl}
                 alt={current.title}
-                className="relative w-full max-h-[300px] object-contain z-10"
+                className="relative w-full h-full object-contain z-10"
                 data-testid="img-announcement-popup"
               />
             </div>
