@@ -14,9 +14,11 @@ export function Sidebar() {
   const { user, logout } = useAuth();
   const { role, isAdmin, isSKUManager } = useRole();
 
+  const isStockCounterOnly = role === "stock_counter" || role === "stock_counter_toko" || role === "stock_counter_gudang";
+
   const navigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
-    { name: "Products / SKU", href: "/products", icon: Box },
+    ...(!isStockCounterOnly ? [{ name: "Products / SKU", href: "/products", icon: Box }] : []),
     { name: "Opname Sessions", href: "/sessions", icon: ClipboardList },
     ...(isAdmin ? [{ name: "User Roles", href: "/roles", icon: Shield }] : []),
     ...(isAdmin || isSKUManager ? [{ name: "Staff SO", href: "/staff", icon: Users }] : []),
@@ -40,6 +42,8 @@ export function Sidebar() {
     admin: "Admin",
     sku_manager: "SKU Manager",
     stock_counter: "Stock Counter",
+    stock_counter_toko: "Stock Toko",
+    stock_counter_gudang: "Stock Gudang",
   };
 
   return (
