@@ -937,6 +937,9 @@ export async function registerRoutes(
           continue;
         }
 
+        const subCategoryRaw = String(row[7] || "").trim() || null;
+        const productCodeRaw = String(row[8] || "").trim() || null;
+
         try {
           const product = await storage.createProduct({
             sku,
@@ -947,6 +950,8 @@ export async function registerRoutes(
             photoUrl: null,
             userId: adminId,
             locationType,
+            subCategory: subCategoryRaw,
+            productCode: productCodeRaw,
           });
           existingSkus.add(sku.toLowerCase());
 
@@ -983,7 +988,7 @@ export async function registerRoutes(
       const productsWithUnits = await storage.getProductsWithPhotosAndUnits(adminId);
 
       const wb = XLSX.utils.book_new();
-      const headers = ["SKU", "Nama Produk", "Kategori", "Deskripsi", "Stok", "Lokasi", "Satuan"];
+      const headers = ["SKU", "Nama Produk", "Kategori", "Deskripsi", "Stok", "Lokasi", "Satuan", "Sub Kategori", "Kode Produk"];
       const rows = productsWithUnits.map(p => [
         p.sku,
         p.name,
@@ -994,10 +999,12 @@ export async function registerRoutes(
         p.units && p.units.length > 0
           ? p.units.sort((a, b) => a.sortOrder - b.sortOrder).map(u => u.unitName).join(", ")
           : "",
+        p.subCategory || "",
+        p.productCode || "",
       ]);
 
       const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-      ws["!cols"] = [{ wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 30 }, { wch: 12 }, { wch: 10 }, { wch: 20 }];
+      ws["!cols"] = [{ wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 30 }, { wch: 12 }, { wch: 10 }, { wch: 20 }, { wch: 15 }, { wch: 15 }];
       XLSX.utils.book_append_sheet(wb, ws, "Produk");
       const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
       res.setHeader("Content-Disposition", "attachment; filename=produk_export.xlsx");

@@ -56,8 +56,11 @@ export default function SessionDetail() {
   const records = useMemo(() => {
     if (!session?.records) return [];
     let filtered = session.records.filter(r => {
-      const matchesSearch = r.product.name.toLowerCase().includes(search.toLowerCase()) ||
-        r.product.sku.toLowerCase().includes(search.toLowerCase());
+      const searchLower = search.toLowerCase();
+      const matchesSearch = r.product.name.toLowerCase().includes(searchLower) ||
+        r.product.sku.toLowerCase().includes(searchLower) ||
+        (r.product.productCode && r.product.productCode.toLowerCase().includes(searchLower)) ||
+        (r.product.subCategory && r.product.subCategory.toLowerCase().includes(searchLower));
       const matchesCategory = categoryFilter === "all" || r.product.category === categoryFilter;
       return matchesSearch && matchesCategory;
     });
@@ -84,16 +87,28 @@ export default function SessionDetail() {
     return { total, counted, progress };
   }, [session?.records]);
 
+  const isGudangSession = session?.locationType === "gudang";
+
   const exportToExcel = () => {
     if (!session?.records) return;
 
-    const data = session.records.map(r => ({
-      SKU: r.product.sku,
-      "Product Name": r.product.name,
-      Category: r.product.category,
-      "Actual Stock": r.actualStock ?? 0,
-      "Notes": r.notes
-    }));
+    const data = isGudangSession
+      ? session.records.map(r => ({
+          "Product Name": r.product.name,
+          "Product Code": r.product.productCode || "",
+          "Unit": r.product.units?.[0]?.unitName || "",
+          "Category": r.product.category || "",
+          "Sub Category": r.product.subCategory || "",
+          "Actual Stock": r.actualStock ?? 0,
+          "Notes": r.notes || "",
+        }))
+      : session.records.map(r => ({
+          SKU: r.product.sku,
+          "Product Name": r.product.name,
+          Category: r.product.category || "",
+          "Actual Stock": r.actualStock ?? 0,
+          "Notes": r.notes || "",
+        }));
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -280,10 +295,10 @@ export default function SessionDetail() {
           <table className="w-full text-left text-sm">
             <thead className="bg-muted/30 border-b border-border/50">
               <tr>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[15%]">SKU</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[20%]">Product</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[10%]">Category</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[22%] text-center">Actual Count</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[15%]">{isGudangSession ? "Kode Produk" : "SKU"}</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[20%]">Produk</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[10%]">Kategori</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[22%] text-center">Jumlah Aktual</th>
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[23%] text-center">Foto</th>
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[10%]">Status</th>
               </tr>
@@ -677,7 +692,7 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
   return (
     <>
       <tr className={cn("transition-colors", isFocused ? "bg-blue-50/50" : "hover:bg-muted/10")} data-testid={`row-record-${record.id}`}>
-        <td className="px-6 py-4 font-mono text-muted-foreground">{record.product.sku}</td>
+        <td className="px-6 py-4 font-mono text-muted-foreground">{isGudang && record.product.productCode ? record.product.productCode : record.product.sku}</td>
         <td className="px-6 py-4">
           <div className="flex items-center gap-2">
             {record.product.photos && record.product.photos.length > 0 ? (

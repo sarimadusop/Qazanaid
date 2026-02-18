@@ -424,10 +424,19 @@ function ProductRow({
           )}
         </button>
       </td>
-      <td className="px-4 py-3 font-mono font-medium text-foreground">{product.sku}</td>
+      <td className="px-4 py-3 font-mono font-medium text-foreground">
+        <div className="flex flex-col gap-1">
+          <span>{product.locationType === "gudang" && product.productCode ? product.productCode : product.sku}</span>
+        </div>
+      </td>
       <td className="px-4 py-3">
         <div className="flex flex-col gap-1">
           <span className="font-medium text-foreground">{product.name}</span>
+          {product.locationType === "gudang" && product.subCategory && (
+            <span className="text-xs text-muted-foreground">
+              {product.subCategory}
+            </span>
+          )}
           {hasUnits && (
             <span className="text-xs text-muted-foreground">
               {formatUnitDisplay(units)}
@@ -583,8 +592,12 @@ function CreateProductDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       description: "",
       currentStock: 0,
       locationType: "toko",
+      subCategory: "",
+      productCode: "",
     },
   });
+
+  const locationTypeValue = form.watch("locationType");
 
   const handleSelectPhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -686,6 +699,37 @@ function CreateProductDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                 )}
               />
             </div>
+
+            {locationTypeValue === "gudang" && (
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="productCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Kode Produk</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Cth: ABC123" {...field} value={field.value || ""} data-testid="input-product-code" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="subCategory"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sub Kategori</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Cth: Snack" {...field} value={field.value || ""} data-testid="input-sub-category" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
 
             <FormField
               control={form.control}
