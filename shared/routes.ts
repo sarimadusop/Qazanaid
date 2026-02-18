@@ -165,6 +165,18 @@ export const api = {
       method: 'GET' as const,
       path: '/api/excel/export' as const,
     },
+    gudangTemplate: {
+      method: 'POST' as const,
+      path: '/api/excel/gudang-template' as const,
+    },
+    gudangExport: {
+      method: 'POST' as const,
+      path: '/api/excel/gudang-export' as const,
+    },
+    gudangImport: {
+      method: 'POST' as const,
+      path: '/api/excel/gudang-import' as const,
+    },
   },
   staff: {
     list: {
