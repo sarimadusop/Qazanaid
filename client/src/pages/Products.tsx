@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   useProducts,
   useCreateProduct,
@@ -18,6 +18,7 @@ import {
   useSetCategoryPriorities,
   type ExcelImportResult,
 } from "@/hooks/use-products";
+import { BatchPhotoUpload } from "@/components/BatchPhotoUpload";
 import { useRole } from "@/hooks/use-role";
 import { api } from "@shared/routes";
 import type { Product, ProductPhoto, ProductUnit } from "@shared/schema";
@@ -899,22 +900,21 @@ function PhotoGalleryDialog({
   const { data: photos, isLoading } = useProductPhotos(productId ?? 0);
   const uploadPhoto = useUploadProductPhoto();
   const deletePhoto = useDeleteProductPhoto();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
+  const [batchOpen, setBatchOpen] = useState(false);
 
-  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || !productId) return;
-    Array.from(files).forEach((file) => {
-      uploadPhoto.mutate({ productId, file });
-    });
-    e.target.value = "";
-  };
+  const handleBatchUpload = useCallback(async (files: File[]) => {
+    if (!productId) return;
+    for (const file of files) {
+      await new Promise<void>((resolve) => {
+        uploadPhoto.mutate({ productId, file }, { onSuccess: () => resolve(), onError: () => resolve() });
+      });
+    }
+  }, [productId, uploadPhoto]);
 
   return (
     <>
-      <Dialog open={open && !viewingPhoto} onOpenChange={onOpenChange}>
+      <Dialog open={open && !viewingPhoto && !batchOpen} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Foto Produk</DialogTitle>
@@ -960,29 +960,13 @@ function PhotoGalleryDialog({
                   </div>
                 ))}
                 {canManage && (
-                  <div className="aspect-square rounded-md border border-dashed border-border flex flex-col items-center justify-center gap-2">
-                    {uploadPhoto.isPending ? (
-                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => cameraRef.current?.click()}
-                          className="flex flex-col items-center gap-1 hover:bg-muted/40 rounded-md p-2 transition-colors"
-                          data-testid="button-camera-photo"
-                        >
-                          <Camera className="w-5 h-5 text-muted-foreground" />
-                          <span className="text-[10px] text-muted-foreground">Kamera</span>
-                        </button>
-                        <button
-                          onClick={() => fileRef.current?.click()}
-                          className="flex flex-col items-center gap-1 hover:bg-muted/40 rounded-md p-2 transition-colors"
-                          data-testid="button-gallery-photo"
-                        >
-                          <ImageIcon className="w-5 h-5 text-muted-foreground" />
-                          <span className="text-[10px] text-muted-foreground">Galeri</span>
-                        </button>
-                      </>
-                    )}
+                  <div
+                    className="aspect-square rounded-md border border-dashed border-border flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-muted/30 transition-colors"
+                    onClick={() => setBatchOpen(true)}
+                    data-testid="button-open-batch-camera"
+                  >
+                    <Camera className="w-6 h-6 text-muted-foreground" />
+                    <span className="text-[10px] text-muted-foreground text-center leading-tight">Ambil / Pilih Foto</span>
                   </div>
                 )}
               </div>
@@ -990,27 +974,16 @@ function PhotoGalleryDialog({
             {(!photos || photos.length === 0) && !isLoading && (
               <p className="text-sm text-muted-foreground text-center py-4">Belum ada foto untuk produk ini.</p>
             )}
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={handleUpload}
-              data-testid="input-upload-photos"
-            />
-            <input
-              ref={cameraRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={handleUpload}
-              data-testid="input-camera-photos"
-            />
           </div>
         </DialogContent>
       </Dialog>
+
+      <BatchPhotoUpload
+        open={batchOpen}
+        onOpenChange={setBatchOpen}
+        onUpload={handleBatchUpload}
+        title="Foto Produk"
+      />
 
       <Dialog open={!!viewingPhoto} onOpenChange={() => setViewingPhoto(null)}>
         <DialogContent className="sm:max-w-[800px] p-2">
