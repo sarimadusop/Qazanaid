@@ -1055,10 +1055,20 @@ export async function registerRoutes(
     try {
       const wb = XLSX.utils.book_new();
 
-      const headers = ["Kode Produk", "Nama Produk", "Kategori", "Sub Kategori", "Satuan Besar", "Isi per Satuan Besar (ke Pack)", "Isi per Pack (ke Gram)", "Stok (Satuan Besar)", "Stok (Pack)", "Stok (Gram)"];
-      const exampleRow = ["GDG-001", "Contoh Produk", "Makanan", "Snack", "Dus", 24, 500, 0, 0, 0];
+      const headers = [
+        "Kode Produk", "Nama Produk", "Kategori", "Sub Kategori",
+        "Nama Satuan 1 (Terbesar)", "Nama Satuan 2 (Tengah)", "Nama Satuan 3 (Terkecil)",
+        "Konversi Satuan 1 ke Satuan 2", "Konversi Satuan 2 ke Satuan 3",
+        "Stok (Satuan 1)", "Stok (Satuan 2)", "Stok (Satuan 3)"
+      ];
+      const exampleRow = ["GDG-001", "Contoh Produk", "Makanan", "Snack", "Dus", "Pack", "Gram", 24, 500, 0, 0, 0];
       const ws = XLSX.utils.aoa_to_sheet([headers, exampleRow]);
-      ws["!cols"] = [{ wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 28 }, { wch: 22 }, { wch: 18 }, { wch: 12 }, { wch: 12 }];
+      ws["!cols"] = [
+        { wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 15 },
+        { wch: 22 }, { wch: 22 }, { wch: 22 },
+        { wch: 26 }, { wch: 26 },
+        { wch: 14 }, { wch: 14 }, { wch: 14 }
+      ];
       XLSX.utils.book_append_sheet(wb, ws, "Data Produk Gudang");
 
       const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
@@ -1073,41 +1083,40 @@ export async function registerRoutes(
 
   app.post(api.excel.gudangExport.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
     try {
-      const { unitSelections } = req.body as {
-        unitSelections: Record<number, string>;
-      };
-
       const adminId = await getTeamAdminId(req);
       const productsWithUnits = await storage.getProductsWithPhotosAndUnits(adminId);
       const gudangProducts = productsWithUnits.filter(p => p.locationType === "gudang");
 
       const wb = XLSX.utils.book_new();
 
-      const headers = ["Kode Produk", "Nama Produk", "Kategori", "Sub Kategori", "Satuan Besar", "Isi per Satuan Besar (ke Pack)", "Isi per Pack (ke Gram)", "Stok (Satuan Besar)", "Stok (Pack)", "Stok (Gram)"];
+      const headers = [
+        "Kode Produk", "Nama Produk", "Kategori", "Sub Kategori",
+        "Nama Satuan 1 (Terbesar)", "Nama Satuan 2 (Tengah)", "Nama Satuan 3 (Terkecil)",
+        "Konversi Satuan 1 ke Satuan 2", "Konversi Satuan 2 ke Satuan 3",
+        "Stok (Satuan 1)", "Stok (Satuan 2)", "Stok (Satuan 3)"
+      ];
       const rows = gudangProducts.map(p => {
         const units = p.units || [];
-        const selectedBigUnit = unitSelections?.[p.id] || "";
+        const sortedUnits = [...units].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
-        let bigUnitName = selectedBigUnit || "";
-        let bigToPackConversion = 0;
-        let packToGramConversion = 0;
+        let unit1Name = "";
+        let unit2Name = "";
+        let unit3Name = "";
+        let conv1to2 = 0;
+        let conv2to3 = 0;
 
-        if (units.length > 0) {
-          const sortedUnits = [...units].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-
-          if (!bigUnitName) {
-            bigUnitName = sortedUnits.length >= 3 ? sortedUnits[0].unitName : (sortedUnits[0]?.unitName || "");
-          }
-
-          const bigUnit = sortedUnits.find(u => u.unitName.toLowerCase() === bigUnitName.toLowerCase());
-          if (bigUnit) {
-            bigToPackConversion = bigUnit.conversionToBase || 0;
-          }
-
-          const packUnit = sortedUnits.find(u => u.unitName.toLowerCase() === "pack");
-          if (packUnit) {
-            packToGramConversion = packUnit.conversionToBase || 0;
-          }
+        if (sortedUnits.length >= 3) {
+          unit1Name = sortedUnits[0].unitName;
+          unit2Name = sortedUnits[1].unitName;
+          unit3Name = sortedUnits[2].unitName;
+          conv1to2 = sortedUnits[0].conversionToBase || 0;
+          conv2to3 = sortedUnits[1].conversionToBase || 0;
+        } else if (sortedUnits.length === 2) {
+          unit1Name = sortedUnits[0].unitName;
+          unit2Name = sortedUnits[1].unitName;
+          conv1to2 = sortedUnits[0].conversionToBase || 0;
+        } else if (sortedUnits.length === 1) {
+          unit1Name = sortedUnits[0].unitName;
         }
 
         return [
@@ -1115,9 +1124,11 @@ export async function registerRoutes(
           p.name,
           p.category || "",
           p.subCategory || "",
-          bigUnitName,
-          bigToPackConversion || "",
-          packToGramConversion || "",
+          unit1Name,
+          unit2Name,
+          unit3Name,
+          conv1to2 || "",
+          conv2to3 || "",
           0,
           0,
           0,
@@ -1125,7 +1136,12 @@ export async function registerRoutes(
       });
 
       const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-      ws["!cols"] = [{ wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 28 }, { wch: 22 }, { wch: 18 }, { wch: 12 }, { wch: 12 }];
+      ws["!cols"] = [
+        { wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 15 },
+        { wch: 22 }, { wch: 22 }, { wch: 22 },
+        { wch: 26 }, { wch: 26 },
+        { wch: 14 }, { wch: 14 }, { wch: 14 }
+      ];
       XLSX.utils.book_append_sheet(wb, ws, "Data Produk Gudang");
 
       const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
@@ -1177,12 +1193,14 @@ export async function registerRoutes(
         const name = String(row[1] || "").trim();
         const category = String(row[2] || "").trim() || null;
         const subCategory = String(row[3] || "").trim() || null;
-        const bigUnitName = String(row[4] || "").trim();
-        const bigToPackConv = parseFloat(String(row[5] || "0")) || 0;
-        const packToGramConv = parseFloat(String(row[6] || "0")) || 0;
-        const stokBesar = parseFloat(String(row[7] || "0")) || 0;
-        const stokPack = parseFloat(String(row[8] || "0")) || 0;
-        const stokGram = parseFloat(String(row[9] || "0")) || 0;
+        const unit1Name = String(row[4] || "").trim();
+        const unit2Name = String(row[5] || "").trim();
+        const unit3Name = String(row[6] || "").trim();
+        const conv1to2 = parseFloat(String(row[7] || "0")) || 0;
+        const conv2to3 = parseFloat(String(row[8] || "0")) || 0;
+        const stok1 = parseFloat(String(row[9] || "0")) || 0;
+        const stok2 = parseFloat(String(row[10] || "0")) || 0;
+        const stok3 = parseFloat(String(row[11] || "0")) || 0;
 
         if (!name) {
           errors.push({ row: i + 1, message: "Nama Produk wajib diisi" });
@@ -1205,18 +1223,18 @@ export async function registerRoutes(
         }
 
         try {
-          let totalGram = stokGram;
-          if (packToGramConv > 0) {
-            totalGram += stokPack * packToGramConv;
+          let totalBase = stok3;
+          if (conv2to3 > 0) {
+            totalBase += stok2 * conv2to3;
           } else {
-            totalGram += stokPack;
+            totalBase += stok2;
           }
-          if (bigToPackConv > 0 && packToGramConv > 0) {
-            totalGram += stokBesar * bigToPackConv * packToGramConv;
-          } else if (bigToPackConv > 0) {
-            totalGram += stokBesar * bigToPackConv;
+          if (conv1to2 > 0 && conv2to3 > 0) {
+            totalBase += stok1 * conv1to2 * conv2to3;
+          } else if (conv1to2 > 0) {
+            totalBase += stok1 * conv1to2;
           } else {
-            totalGram += stokBesar;
+            totalBase += stok1;
           }
 
           const product = await storage.createProduct({
@@ -1224,7 +1242,7 @@ export async function registerRoutes(
             name,
             category,
             description: null,
-            currentStock: totalGram,
+            currentStock: totalBase,
             photoUrl: null,
             userId: adminId,
             locationType: "gudang",
@@ -1236,30 +1254,44 @@ export async function registerRoutes(
 
           const unitsToCreate: { unitName: string; conversionToBase: number; baseUnit: string; sortOrder: number }[] = [];
 
-          if (bigUnitName && bigToPackConv > 0) {
+          if (unit1Name && unit2Name && conv1to2 > 0) {
             unitsToCreate.push({
-              unitName: bigUnitName,
-              conversionToBase: bigToPackConv,
-              baseUnit: "Pack",
+              unitName: unit1Name,
+              conversionToBase: conv1to2,
+              baseUnit: unit2Name,
+              sortOrder: 0,
+            });
+          } else if (unit1Name && !unit2Name) {
+            unitsToCreate.push({
+              unitName: unit1Name,
+              conversionToBase: 1,
+              baseUnit: unit1Name,
               sortOrder: 0,
             });
           }
 
-          if (packToGramConv > 0) {
+          if (unit2Name && unit3Name && conv2to3 > 0) {
             unitsToCreate.push({
-              unitName: "Pack",
-              conversionToBase: packToGramConv,
-              baseUnit: "Gram",
+              unitName: unit2Name,
+              conversionToBase: conv2to3,
+              baseUnit: unit3Name,
               sortOrder: 1,
             });
+          } else if (unit2Name && !unit3Name) {
+            unitsToCreate.push({
+              unitName: unit2Name,
+              conversionToBase: 1,
+              baseUnit: unit2Name,
+              sortOrder: unit1Name ? 1 : 0,
+            });
           }
 
-          if (unitsToCreate.length === 0 && bigUnitName) {
+          if (unit3Name) {
             unitsToCreate.push({
-              unitName: bigUnitName,
+              unitName: unit3Name,
               conversionToBase: 1,
-              baseUnit: bigUnitName,
-              sortOrder: 0,
+              baseUnit: unit3Name,
+              sortOrder: unitsToCreate.length,
             });
           }
 
