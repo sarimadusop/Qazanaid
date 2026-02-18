@@ -893,6 +893,12 @@ export async function registerRoutes(
       const adminId = await getTeamAdminId(req);
       const existingProducts = await storage.getProducts(adminId);
       const existingSkus = new Set(existingProducts.map(p => p.sku.toLowerCase()));
+      const existingProductCodes = new Set(existingProducts.filter(p => p.productCode).map(p => p.productCode!.toLowerCase()));
+
+      const headerRow = rows[0] || [];
+      const firstHeader = String(headerRow[0] || "").trim().toLowerCase();
+      const isGudangFormat = firstHeader === "product name" || firstHeader === "nama produk" || firstHeader === "product code" ||
+        (headerRow.length >= 2 && String(headerRow[1] || "").trim().toLowerCase() === "product code");
 
       let imported = 0;
       let skipped = 0;
@@ -904,78 +910,141 @@ export async function registerRoutes(
           continue;
         }
 
-        const sku = String(row[0] || "").trim();
-        const name = String(row[1] || "").trim();
-        const category = String(row[2] || "").trim() || null;
-        const description = String(row[3] || "").trim() || null;
-        const currentStock = parseInt(String(row[4] || "0"), 10);
-        const locationRaw = String(row[5] || "").trim().toLowerCase();
-        const locationType = locationRaw === "gudang" ? "gudang" : "toko";
-        const satuanRaw = String(row[6] || "").trim();
+        if (isGudangFormat) {
+          const name = String(row[0] || "").trim();
+          const productCode = String(row[1] || "").trim();
+          const satuanRaw = String(row[2] || "").trim();
+          const category = String(row[3] || "").trim() || null;
+          const subCategory = String(row[4] || "").trim() || null;
 
-        if (!sku) {
-          errors.push({ row: i + 1, message: "SKU wajib diisi" });
-          skipped++;
-          continue;
-        }
-
-        if (!name) {
-          errors.push({ row: i + 1, message: "Nama Produk wajib diisi" });
-          skipped++;
-          continue;
-        }
-
-        if (existingSkus.has(sku.toLowerCase())) {
-          errors.push({ row: i + 1, message: `SKU "${sku}" sudah ada` });
-          skipped++;
-          continue;
-        }
-
-        if (isNaN(currentStock) || currentStock < 0) {
-          errors.push({ row: i + 1, message: "Stok harus berupa angka positif" });
-          skipped++;
-          continue;
-        }
-
-        const subCategoryRaw = String(row[7] || "").trim() || null;
-        const productCodeRaw = String(row[8] || "").trim() || null;
-
-        try {
-          const product = await storage.createProduct({
-            sku,
-            name,
-            category,
-            description,
-            currentStock,
-            photoUrl: null,
-            userId: adminId,
-            locationType,
-            subCategory: subCategoryRaw,
-            productCode: productCodeRaw,
-          });
-          existingSkus.add(sku.toLowerCase());
-
-          if (satuanRaw) {
-            const unitNames = satuanRaw.split(",").map(s => s.trim()).filter(Boolean);
-            for (let j = 0; j < unitNames.length; j++) {
-              await storage.addProductUnit({
-                productId: product.id,
-                unitName: unitNames[j],
-                conversionToBase: 1,
-                baseUnit: unitNames[j],
-                sortOrder: j,
-              });
-            }
+          if (!name) {
+            errors.push({ row: i + 1, message: "Nama Produk wajib diisi" });
+            skipped++;
+            continue;
           }
 
-          imported++;
-        } catch (err) {
-          errors.push({ row: i + 1, message: "Gagal menyimpan produk" });
-          skipped++;
+          const sku = productCode || `GDG-${Date.now()}-${i}`;
+
+          if (existingSkus.has(sku.toLowerCase())) {
+            errors.push({ row: i + 1, message: `Produk "${name}" (kode: ${sku}) sudah ada` });
+            skipped++;
+            continue;
+          }
+
+          if (productCode && existingProductCodes.has(productCode.toLowerCase())) {
+            errors.push({ row: i + 1, message: `Kode Produk "${productCode}" sudah ada` });
+            skipped++;
+            continue;
+          }
+
+          try {
+            const product = await storage.createProduct({
+              sku,
+              name,
+              category,
+              description: null,
+              currentStock: 0,
+              photoUrl: null,
+              userId: adminId,
+              locationType: "gudang",
+              subCategory,
+              productCode: productCode || null,
+            });
+            existingSkus.add(sku.toLowerCase());
+            if (productCode) existingProductCodes.add(productCode.toLowerCase());
+
+            if (satuanRaw) {
+              const unitNames = satuanRaw.split(",").map(s => s.trim()).filter(Boolean);
+              for (let j = 0; j < unitNames.length; j++) {
+                await storage.addProductUnit({
+                  productId: product.id,
+                  unitName: unitNames[j],
+                  conversionToBase: 1,
+                  baseUnit: unitNames[j],
+                  sortOrder: j,
+                });
+              }
+            }
+
+            imported++;
+          } catch (err) {
+            errors.push({ row: i + 1, message: "Gagal menyimpan produk" });
+            skipped++;
+          }
+        } else {
+          const sku = String(row[0] || "").trim();
+          const name = String(row[1] || "").trim();
+          const category = String(row[2] || "").trim() || null;
+          const description = String(row[3] || "").trim() || null;
+          const currentStock = parseInt(String(row[4] || "0"), 10);
+          const locationRaw = String(row[5] || "").trim().toLowerCase();
+          const locationType = locationRaw === "gudang" ? "gudang" : "toko";
+          const satuanRaw = String(row[6] || "").trim();
+
+          if (!sku) {
+            errors.push({ row: i + 1, message: "SKU wajib diisi" });
+            skipped++;
+            continue;
+          }
+
+          if (!name) {
+            errors.push({ row: i + 1, message: "Nama Produk wajib diisi" });
+            skipped++;
+            continue;
+          }
+
+          if (existingSkus.has(sku.toLowerCase())) {
+            errors.push({ row: i + 1, message: `SKU "${sku}" sudah ada` });
+            skipped++;
+            continue;
+          }
+
+          if (isNaN(currentStock) || currentStock < 0) {
+            errors.push({ row: i + 1, message: "Stok harus berupa angka positif" });
+            skipped++;
+            continue;
+          }
+
+          const subCategoryRaw = String(row[7] || "").trim() || null;
+          const productCodeRaw = String(row[8] || "").trim() || null;
+
+          try {
+            const product = await storage.createProduct({
+              sku,
+              name,
+              category,
+              description,
+              currentStock,
+              photoUrl: null,
+              userId: adminId,
+              locationType,
+              subCategory: subCategoryRaw,
+              productCode: productCodeRaw,
+            });
+            existingSkus.add(sku.toLowerCase());
+
+            if (satuanRaw) {
+              const unitNames = satuanRaw.split(",").map(s => s.trim()).filter(Boolean);
+              for (let j = 0; j < unitNames.length; j++) {
+                await storage.addProductUnit({
+                  productId: product.id,
+                  unitName: unitNames[j],
+                  conversionToBase: 1,
+                  baseUnit: unitNames[j],
+                  sortOrder: j,
+                });
+              }
+            }
+
+            imported++;
+          } catch (err) {
+            errors.push({ row: i + 1, message: "Gagal menyimpan produk" });
+            skipped++;
+          }
         }
       }
 
-      res.json({ imported, skipped, errors });
+      res.json({ imported, skipped, errors, format: isGudangFormat ? "gudang" : "standard" });
     } catch (err) {
       console.error("Excel import error:", err);
       res.status(500).json({ message: "Gagal memproses file Excel" });
