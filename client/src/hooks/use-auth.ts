@@ -75,8 +75,8 @@ export function useAuth() {
       if (!res.ok) throw new Error("Logout gagal");
     },
     onSuccess: () => {
-      queryClient.setQueryData(["/api/auth/user"], null);
       queryClient.clear();
+      window.location.href = "/";
     },
   });
 
