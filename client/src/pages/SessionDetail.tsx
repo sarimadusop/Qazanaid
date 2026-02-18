@@ -3,6 +3,7 @@ import { useCategories, useCategoryPriorities, useSetCategoryPriorities } from "
 import { useRole } from "@/hooks/use-role";
 import { useParams, useLocation } from "wouter";
 import { ArrowLeft, CheckCircle2, Download, Search, Loader2, Filter, Camera, Image, X, FileArchive, Trash2, Plus, Printer, MapPin, User, CalendarDays, CheckSquare, ListOrdered, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
+import { BatchPhotoUpload } from "@/components/BatchPhotoUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -552,8 +553,6 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
   const [isFocused, setIsFocused] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const productUnits = record.product.units ?? [];
   const hasUnits = isGudang && productUnits.length > 0;
@@ -641,38 +640,18 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
     }
   };
 
-  const [isUploading, setIsUploading] = useState(false);
+  const [batchPhotoOpen, setBatchPhotoOpen] = useState(false);
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setIsUploading(true);
-    const fileArray = Array.from(files);
-
-    try {
-      for (const file of fileArray) {
-        let fileToUpload: File = file;
-        try {
-          fileToUpload = await compressImage(file);
-        } catch {}
-        await new Promise<void>((resolve) => {
-          uploadPhoto.mutate(
-            { sessionId, productId: record.productId, file: fileToUpload },
-            { onSuccess: () => resolve(), onError: () => resolve() }
-          );
-        });
-      }
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-      if (cameraInputRef.current) {
-        cameraInputRef.current.value = "";
-      }
+  const handleBatchUpload = useCallback(async (files: File[]) => {
+    for (const file of files) {
+      await new Promise<void>((resolve) => {
+        uploadPhoto.mutate(
+          { sessionId, productId: record.productId, file },
+          { onSuccess: () => resolve(), onError: () => resolve() }
+        );
+      });
     }
-  };
+  }, [uploadPhoto, sessionId, record.productId]);
 
   const handleDeletePhoto = (photoId: number) => {
     deletePhoto.mutate({
@@ -820,48 +799,14 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
               </div>
             )}
             {!readOnly && (
-              <>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  ref={fileInputRef}
-                  onChange={handlePhotoUpload}
-                  data-testid={`input-photo-${record.productId}`}
-                />
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  ref={cameraInputRef}
-                  onChange={handlePhotoUpload}
-                  data-testid={`input-camera-${record.productId}`}
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => cameraInputRef.current?.click()}
-                  disabled={isUploading}
-                  data-testid={`button-camera-${record.productId}`}
-                >
-                  {isUploading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Camera className="w-4 h-4" />
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading}
-                  data-testid={`button-gallery-${record.productId}`}
-                >
-                  <Image className="w-4 h-4" />
-                </Button>
-              </>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setBatchPhotoOpen(true)}
+                data-testid={`button-batch-photo-${record.productId}`}
+              >
+                <Camera className="w-4 h-4" />
+              </Button>
             )}
           </div>
         </td>
@@ -915,6 +860,13 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <BatchPhotoUpload
+        open={batchPhotoOpen}
+        onOpenChange={setBatchPhotoOpen}
+        onUpload={handleBatchUpload}
+        title={`Foto Opname - ${record.product.name}`}
+      />
     </>
   );
 }
