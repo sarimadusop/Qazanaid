@@ -688,15 +688,15 @@ function PhotoLightbox({ open, onOpenChange, photos, initialIndex, title, produc
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] sm:max-w-2xl p-0 gap-0 overflow-hidden">
-        <DialogHeader className="p-4 pb-2">
+      <DialogContent className="w-[95vw] h-[95vh] max-w-[95vw] max-h-[95vh] p-0 gap-0 overflow-hidden flex flex-col">
+        <DialogHeader className="p-3 pb-1 flex-shrink-0">
           <DialogTitle className="text-sm">Foto Opname - {title} ({currentIndex + 1}/{photos.length})</DialogTitle>
         </DialogHeader>
-        <div className="relative flex flex-col">
+        <div className="relative flex flex-col flex-1 min-h-0">
           <div
             ref={containerRef}
-            className="relative w-full bg-black/5 dark:bg-black/20 overflow-hidden select-none"
-            style={{ height: "min(60vh, 500px)", touchAction: scale > 1 ? "none" : "pan-y" }}
+            className="relative w-full flex-1 min-h-0 bg-black/5 dark:bg-black/20 overflow-hidden select-none"
+            style={{ touchAction: scale > 1 ? "none" : "pan-y" }}
             onWheel={handleWheel}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
