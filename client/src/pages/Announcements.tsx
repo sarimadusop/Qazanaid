@@ -100,7 +100,7 @@ function AnnouncementCard({ announcement, onEdit }: { announcement: any; onEdit:
   return (
     <Card className="flex flex-col overflow-visible hover-elevate" data-testid={`card-announcement-${announcement.id}`}>
       {announcement.imageUrl && (
-        <div className="w-full aspect-video overflow-hidden rounded-t-md relative">
+        <div className="w-full aspect-square overflow-hidden rounded-t-md relative">
           <img
             src={announcement.imageUrl}
             alt=""

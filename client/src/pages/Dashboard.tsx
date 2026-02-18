@@ -63,7 +63,7 @@ export default function Dashboard() {
             <Card key={announcement.id} className="overflow-visible" data-testid={`card-announcement-${announcement.id}`}>
               {announcement.imageUrl ? (
                 <div className="flex flex-col md:flex-row">
-                  <div className="md:w-2/5 w-full relative overflow-hidden rounded-t-md md:rounded-l-md md:rounded-tr-none min-h-[200px] max-h-[300px]">
+                  <div className="md:w-2/5 w-full relative overflow-hidden rounded-t-md md:rounded-l-md md:rounded-tr-none aspect-square">
                     <img
                       src={announcement.imageUrl}
                       alt=""
