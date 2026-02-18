@@ -538,6 +538,7 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const productUnits = record.product.units ?? [];
   const hasUnits = isGudang && productUnits.length > 0;
@@ -651,6 +652,9 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
       setIsUploading(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
+      }
+      if (cameraInputRef.current) {
+        cameraInputRef.current.value = "";
       }
     }
   };
@@ -811,18 +815,36 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
                   onChange={handlePhotoUpload}
                   data-testid={`input-photo-${record.productId}`}
                 />
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  ref={cameraInputRef}
+                  onChange={handlePhotoUpload}
+                  data-testid={`input-camera-${record.productId}`}
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => cameraInputRef.current?.click()}
+                  disabled={isUploading}
+                  data-testid={`button-camera-${record.productId}`}
+                >
+                  {isUploading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Camera className="w-4 h-4" />
+                  )}
+                </Button>
                 <Button
                   variant="outline"
                   size="icon"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading}
-                  data-testid={`button-upload-photo-${record.productId}`}
+                  data-testid={`button-gallery-${record.productId}`}
                 >
-                  {isUploading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Plus className="w-4 h-4" />
-                  )}
+                  <Image className="w-4 h-4" />
                 </Button>
               </>
             )}

@@ -572,6 +572,7 @@ function CreateProductDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const [previews, setPreviews] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<z.infer<typeof createFormSchema>>({
     resolver: zodResolver(createFormSchema),
@@ -778,19 +779,33 @@ function CreateProductDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                     ))}
                   </div>
                 )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => photoInputRef.current?.click()}
-                  disabled={isBusy}
-                  data-testid="button-select-photos"
-                >
-                  <Camera className="w-4 h-4 mr-2" />
-                  {selectedFiles.length > 0
-                    ? `${selectedFiles.length} foto dipilih - Tambah lagi`
-                    : "Pilih Foto"}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => cameraInputRef.current?.click()}
+                    disabled={isBusy}
+                    data-testid="button-camera-create"
+                  >
+                    <Camera className="w-4 h-4 mr-2" />
+                    Kamera
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => photoInputRef.current?.click()}
+                    disabled={isBusy}
+                    data-testid="button-gallery-create"
+                  >
+                    <ImageIcon className="w-4 h-4 mr-2" />
+                    Galeri
+                  </Button>
+                </div>
+                {selectedFiles.length > 0 && (
+                  <p className="text-xs text-muted-foreground text-center">{selectedFiles.length} foto dipilih</p>
+                )}
                 <input
                   ref={photoInputRef}
                   type="file"
@@ -799,6 +814,15 @@ function CreateProductDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                   className="hidden"
                   onChange={handleSelectPhotos}
                   data-testid="input-select-photos"
+                />
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handleSelectPhotos}
+                  data-testid="input-camera-create"
                 />
               </div>
             </div>
@@ -832,6 +856,7 @@ function PhotoGalleryDialog({
   const uploadPhoto = useUploadProductPhoto();
   const deletePhoto = useDeleteProductPhoto();
   const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -891,21 +916,30 @@ function PhotoGalleryDialog({
                   </div>
                 ))}
                 {canManage && (
-                  <button
-                    onClick={() => fileRef.current?.click()}
-                    className="aspect-square rounded-md border border-dashed border-border flex flex-col items-center justify-center gap-2 hover:bg-muted/40 transition-colors"
-                    disabled={uploadPhoto.isPending}
-                    data-testid="button-upload-new-photo"
-                  >
+                  <div className="aspect-square rounded-md border border-dashed border-border flex flex-col items-center justify-center gap-2">
                     {uploadPhoto.isPending ? (
                       <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                     ) : (
                       <>
-                        <Upload className="w-5 h-5 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">Tambah Foto</span>
+                        <button
+                          onClick={() => cameraRef.current?.click()}
+                          className="flex flex-col items-center gap-1 hover:bg-muted/40 rounded-md p-2 transition-colors"
+                          data-testid="button-camera-photo"
+                        >
+                          <Camera className="w-5 h-5 text-muted-foreground" />
+                          <span className="text-[10px] text-muted-foreground">Kamera</span>
+                        </button>
+                        <button
+                          onClick={() => fileRef.current?.click()}
+                          className="flex flex-col items-center gap-1 hover:bg-muted/40 rounded-md p-2 transition-colors"
+                          data-testid="button-gallery-photo"
+                        >
+                          <ImageIcon className="w-5 h-5 text-muted-foreground" />
+                          <span className="text-[10px] text-muted-foreground">Galeri</span>
+                        </button>
                       </>
                     )}
-                  </button>
+                  </div>
                 )}
               </div>
             )}
@@ -920,6 +954,15 @@ function PhotoGalleryDialog({
               className="hidden"
               onChange={handleUpload}
               data-testid="input-upload-photos"
+            />
+            <input
+              ref={cameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleUpload}
+              data-testid="input-camera-photos"
             />
           </div>
         </DialogContent>
