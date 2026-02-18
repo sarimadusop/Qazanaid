@@ -886,6 +886,7 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
     }
   };
 
+  const [refPhotoOpen, setRefPhotoOpen] = useState(false);
   const [batchPhotoOpen, setBatchPhotoOpen] = useState(false);
   const { addUploadJob } = useBackgroundUpload();
 
@@ -925,14 +926,23 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
         <td className="px-6 py-4">
           <div className="flex items-center gap-2">
             {record.product.photos && record.product.photos.length > 0 ? (
-              <img
-                src={record.product.photos[0].url}
-                alt={record.product.name}
-                className="w-8 h-8 rounded-md object-cover flex-shrink-0"
-                loading="lazy"
-                onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden'); }}
-                data-testid={`img-product-photo-${record.productId}`}
-              />
+              <button
+                onClick={() => setRefPhotoOpen(true)}
+                className="cursor-pointer relative group flex-shrink-0"
+                data-testid={`button-ref-photo-${record.productId}`}
+              >
+                <img
+                  src={record.product.photos[0].url}
+                  alt={record.product.name}
+                  className="w-8 h-8 rounded-md object-cover"
+                  loading="lazy"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  data-testid={`img-product-photo-${record.productId}`}
+                />
+                <div className="absolute inset-0 bg-black/40 rounded-md opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <ZoomIn className="w-3 h-3 text-white" />
+                </div>
+              </button>
             ) : null}
             <div className={cn("w-8 h-8 rounded-md bg-muted/30 flex items-center justify-center flex-shrink-0", record.product.photos && record.product.photos.length > 0 ? "hidden" : "")} data-testid={`img-product-placeholder-${record.productId}`}>
               <Image className="w-4 h-4 text-muted-foreground/50" />
@@ -1075,6 +1085,15 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
         photos={allPhotos.length > 0 ? allPhotos.map(p => p.url) : record.photoUrl ? [record.photoUrl] : []}
         initialIndex={lightboxIndex}
         title={record.product.name}
+        productId={record.productId}
+      />
+
+      <PhotoLightbox
+        open={refPhotoOpen}
+        onOpenChange={setRefPhotoOpen}
+        photos={record.product.photos ? record.product.photos.map((p: any) => p.url) : []}
+        initialIndex={0}
+        title={`Referensi - ${record.product.name}`}
         productId={record.productId}
       />
 

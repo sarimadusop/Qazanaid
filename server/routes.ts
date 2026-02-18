@@ -1053,29 +1053,13 @@ export async function registerRoutes(
 
   app.post(api.excel.gudangTemplate.path, isAuthenticated, requireRole("admin", "sku_manager"), (req, res) => {
     try {
-      const { units, conversions } = req.body as {
-        units: string[];
-        conversions: { fromUnit: string; amount: number; toUnit: string }[];
-      };
-
-      if (!units || units.length === 0) {
-        return res.status(400).json({ message: "Minimal 1 satuan harus dipilih" });
-      }
-
       const wb = XLSX.utils.book_new();
 
-      const headers = ["Nama Produk", "Kode Produk", "Kategori", "Sub Kategori", ...units];
-      const exampleRow = ["Contoh Produk", "GDG-001", "Makanan", "Snack", ...units.map(() => 0)];
+      const headers = ["Kode Produk", "Nama Produk", "Kategori", "Sub Kategori", "Satuan Besar", "Isi per Satuan Besar (ke Pack)", "Isi per Pack (ke Gram)", "Stok (Satuan Besar)", "Stok (Pack)", "Stok (Gram)"];
+      const exampleRow = ["GDG-001", "Contoh Produk", "Makanan", "Snack", "Dus", 24, 500, 0, 0, 0];
       const ws = XLSX.utils.aoa_to_sheet([headers, exampleRow]);
-      const colWidths = [{ wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, ...units.map(() => ({ wch: 12 }))];
-      ws["!cols"] = colWidths;
+      ws["!cols"] = [{ wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 28 }, { wch: 22 }, { wch: 18 }, { wch: 12 }, { wch: 12 }];
       XLSX.utils.book_append_sheet(wb, ws, "Data Produk Gudang");
-
-      const convHeaders = ["Satuan Besar", "Jumlah", "Satuan Kecil"];
-      const convRows = conversions.map(c => [c.fromUnit, c.amount, c.toUnit]);
-      const wsConv = XLSX.utils.aoa_to_sheet([convHeaders, ...convRows]);
-      wsConv["!cols"] = [{ wch: 18 }, { wch: 10 }, { wch: 18 }];
-      XLSX.utils.book_append_sheet(wb, wsConv, "Tabel Konversi Satuan");
 
       const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
       res.setHeader("Content-Disposition", "attachment; filename=template_gudang.xlsx");
@@ -1089,14 +1073,9 @@ export async function registerRoutes(
 
   app.post(api.excel.gudangExport.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
     try {
-      const { units, conversions } = req.body as {
-        units: string[];
-        conversions: { fromUnit: string; amount: number; toUnit: string }[];
+      const { unitSelections } = req.body as {
+        unitSelections: Record<number, string>;
       };
-
-      if (!units || units.length === 0) {
-        return res.status(400).json({ message: "Minimal 1 satuan harus dipilih" });
-      }
 
       const adminId = await getTeamAdminId(req);
       const productsWithUnits = await storage.getProductsWithPhotosAndUnits(adminId);
@@ -1104,27 +1083,50 @@ export async function registerRoutes(
 
       const wb = XLSX.utils.book_new();
 
-      const headers = ["Nama Produk", "Kode Produk", "Kategori", "Sub Kategori", ...units];
+      const headers = ["Kode Produk", "Nama Produk", "Kategori", "Sub Kategori", "Satuan Besar", "Isi per Satuan Besar (ke Pack)", "Isi per Pack (ke Gram)", "Stok (Satuan Besar)", "Stok (Pack)", "Stok (Gram)"];
       const rows = gudangProducts.map(p => {
-        const unitCols = units.map(() => 0);
+        const units = p.units || [];
+        const selectedBigUnit = unitSelections?.[p.id] || "";
+
+        let bigUnitName = selectedBigUnit || "";
+        let bigToPackConversion = 0;
+        let packToGramConversion = 0;
+
+        if (units.length > 0) {
+          const sortedUnits = [...units].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+
+          if (!bigUnitName) {
+            bigUnitName = sortedUnits.length >= 3 ? sortedUnits[0].unitName : (sortedUnits[0]?.unitName || "");
+          }
+
+          const bigUnit = sortedUnits.find(u => u.unitName.toLowerCase() === bigUnitName.toLowerCase());
+          if (bigUnit) {
+            bigToPackConversion = bigUnit.conversionToBase || 0;
+          }
+
+          const packUnit = sortedUnits.find(u => u.unitName.toLowerCase() === "pack");
+          if (packUnit) {
+            packToGramConversion = packUnit.conversionToBase || 0;
+          }
+        }
+
         return [
+          p.productCode || p.sku,
           p.name,
-          p.productCode || "",
           p.category || "",
           p.subCategory || "",
-          ...unitCols,
+          bigUnitName,
+          bigToPackConversion || "",
+          packToGramConversion || "",
+          0,
+          0,
+          0,
         ];
       });
-      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-      const colWidths = [{ wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, ...units.map(() => ({ wch: 12 }))];
-      ws["!cols"] = colWidths;
-      XLSX.utils.book_append_sheet(wb, ws, "Data Produk Gudang");
 
-      const convHeaders = ["Satuan Besar", "Jumlah", "Satuan Kecil"];
-      const convRows = conversions.map(c => [c.fromUnit, c.amount, c.toUnit]);
-      const wsConv = XLSX.utils.aoa_to_sheet([convHeaders, ...convRows]);
-      wsConv["!cols"] = [{ wch: 18 }, { wch: 10 }, { wch: 18 }];
-      XLSX.utils.book_append_sheet(wb, wsConv, "Tabel Konversi Satuan");
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      ws["!cols"] = [{ wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 28 }, { wch: 22 }, { wch: 18 }, { wch: 12 }, { wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, ws, "Data Produk Gudang");
 
       const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
       res.setHeader("Content-Disposition", "attachment; filename=export_gudang.xlsx");
@@ -1156,29 +1158,6 @@ export async function registerRoutes(
         return res.status(400).json({ message: "File kosong atau tidak memiliki data" });
       }
 
-      const conversionMap: { fromUnit: string; amount: number; toUnit: string }[] = [];
-      const wsConv = wb.Sheets["Tabel Konversi Satuan"];
-      if (wsConv) {
-        const convRows: any[][] = XLSX.utils.sheet_to_json(wsConv, { header: 1 });
-        for (let i = 1; i < convRows.length; i++) {
-          const row = convRows[i];
-          if (row && row[0] && row[1] && row[2]) {
-            conversionMap.push({
-              fromUnit: String(row[0]).trim(),
-              amount: parseFloat(String(row[1])) || 1,
-              toUnit: String(row[2]).trim(),
-            });
-          }
-        }
-      }
-
-      const headerRow = dataRows[0] || [];
-      const unitColumns: string[] = [];
-      for (let c = 4; c < headerRow.length; c++) {
-        const h = String(headerRow[c] || "").trim();
-        if (h) unitColumns.push(h);
-      }
-
       const adminId = await getTeamAdminId(req);
       const existingProducts = await storage.getProducts(adminId);
       const existingSkus = new Set(existingProducts.map(p => p.sku.toLowerCase()));
@@ -1194,10 +1173,16 @@ export async function registerRoutes(
           continue;
         }
 
-        const name = String(row[0] || "").trim();
-        const productCode = String(row[1] || "").trim();
+        const productCode = String(row[0] || "").trim();
+        const name = String(row[1] || "").trim();
         const category = String(row[2] || "").trim() || null;
         const subCategory = String(row[3] || "").trim() || null;
+        const bigUnitName = String(row[4] || "").trim();
+        const bigToPackConv = parseFloat(String(row[5] || "0")) || 0;
+        const packToGramConv = parseFloat(String(row[6] || "0")) || 0;
+        const stokBesar = parseFloat(String(row[7] || "0")) || 0;
+        const stokPack = parseFloat(String(row[8] || "0")) || 0;
+        const stokGram = parseFloat(String(row[9] || "0")) || 0;
 
         if (!name) {
           errors.push({ row: i + 1, message: "Nama Produk wajib diisi" });
@@ -1220,12 +1205,26 @@ export async function registerRoutes(
         }
 
         try {
+          let totalGram = stokGram;
+          if (packToGramConv > 0) {
+            totalGram += stokPack * packToGramConv;
+          } else {
+            totalGram += stokPack;
+          }
+          if (bigToPackConv > 0 && packToGramConv > 0) {
+            totalGram += stokBesar * bigToPackConv * packToGramConv;
+          } else if (bigToPackConv > 0) {
+            totalGram += stokBesar * bigToPackConv;
+          } else {
+            totalGram += stokBesar;
+          }
+
           const product = await storage.createProduct({
             sku,
             name,
             category,
             description: null,
-            currentStock: 0,
+            currentStock: totalGram,
             photoUrl: null,
             userId: adminId,
             locationType: "gudang",
@@ -1235,18 +1234,40 @@ export async function registerRoutes(
           existingSkus.add(sku.toLowerCase());
           if (productCode) existingProductCodes.add(productCode.toLowerCase());
 
-          if (unitColumns.length > 0) {
-            for (let j = 0; j < unitColumns.length; j++) {
-              const unitName = unitColumns[j];
-              const conv = conversionMap.find(c => c.fromUnit.toLowerCase() === unitName.toLowerCase());
-              await storage.addProductUnit({
-                productId: product.id,
-                unitName,
-                conversionToBase: conv ? conv.amount : 1,
-                baseUnit: conv ? conv.toUnit : unitName,
-                sortOrder: j,
-              });
-            }
+          const unitsToCreate: { unitName: string; conversionToBase: number; baseUnit: string; sortOrder: number }[] = [];
+
+          if (bigUnitName && bigToPackConv > 0) {
+            unitsToCreate.push({
+              unitName: bigUnitName,
+              conversionToBase: bigToPackConv,
+              baseUnit: "Pack",
+              sortOrder: 0,
+            });
+          }
+
+          if (packToGramConv > 0) {
+            unitsToCreate.push({
+              unitName: "Pack",
+              conversionToBase: packToGramConv,
+              baseUnit: "Gram",
+              sortOrder: 1,
+            });
+          }
+
+          if (unitsToCreate.length === 0 && bigUnitName) {
+            unitsToCreate.push({
+              unitName: bigUnitName,
+              conversionToBase: 1,
+              baseUnit: bigUnitName,
+              sortOrder: 0,
+            });
+          }
+
+          for (const unit of unitsToCreate) {
+            await storage.addProductUnit({
+              productId: product.id,
+              ...unit,
+            });
           }
 
           imported++;
@@ -1256,7 +1277,7 @@ export async function registerRoutes(
         }
       }
 
-      res.json({ imported, skipped, errors, format: "gudang-template", conversions: conversionMap.length });
+      res.json({ imported, skipped, errors, format: "gudang-3-tingkat" });
     } catch (err) {
       console.error("Gudang import error:", err);
       res.status(500).json({ message: "Gagal memproses file Excel gudang" });

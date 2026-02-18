@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   useProducts,
+  useProductsWithDetails,
   useCreateProduct,
   useUpdateProduct,
   useDeleteProduct,
@@ -75,7 +76,6 @@ export default function Products() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [categoryPriorityOpen, setCategoryPriorityOpen] = useState(false);
-  const [gudangTemplateOpen, setGudangTemplateOpen] = useState(false);
   const [gudangExportOpen, setGudangExportOpen] = useState(false);
   const [gudangImportLoading, setGudangImportLoading] = useState(false);
   const importExcel = useImportExcel();
@@ -193,7 +193,26 @@ export default function Products() {
                   <>
                     <Button
                       variant="outline"
-                      onClick={() => setGudangTemplateOpen(true)}
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(api.excel.gudangTemplate.path, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({}),
+                            credentials: "include",
+                          });
+                          if (!res.ok) throw new Error("Gagal download template");
+                          const blob = await res.blob();
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = "template_gudang.xlsx";
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        } catch (err: any) {
+                          toast({ title: "Error", description: err.message, variant: "destructive" });
+                        }
+                      }}
                       data-testid="button-gudang-template"
                     >
                       <Download className="w-4 h-4 mr-2" />
@@ -356,16 +375,10 @@ export default function Products() {
         categories={categories ?? []}
       />
 
-      <GudangExcelDialog
-        open={gudangTemplateOpen}
-        onOpenChange={setGudangTemplateOpen}
-        mode="template"
-      />
-
-      <GudangExcelDialog
+      <GudangExportDialog
         open={gudangExportOpen}
         onOpenChange={setGudangExportOpen}
-        mode="export"
+        products={products?.filter(p => p.locationType === "gudang") ?? []}
       />
 
       <div className="bg-card border border-border rounded-md overflow-hidden">
@@ -1412,79 +1425,58 @@ function CategoryPriorityDialog({ open, onOpenChange, categories }: {
   );
 }
 
-interface ConversionRow {
-  fromUnit: string;
-  amount: number;
-  toUnit: string;
-}
-
-function GudangExcelDialog({ open, onOpenChange, mode }: {
+function GudangExportDialog({ open, onOpenChange, products }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  mode: "template" | "export";
+  products: any[];
 }) {
-  const [units, setUnits] = useState<string[]>(["Dus", "Pack", "Pcs"]);
-  const [newUnit, setNewUnit] = useState("");
-  const [conversions, setConversions] = useState<ConversionRow[]>([
-    { fromUnit: "Dus", amount: 24, toUnit: "Pack" },
-    { fromUnit: "Pack", amount: 10, toUnit: "Pcs" },
-  ]);
+  const [unitSelections, setUnitSelections] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const { data: detailedProducts } = useProductsWithDetails();
 
-  const addUnit = () => {
-    const trimmed = newUnit.trim();
-    if (!trimmed) return;
-    if (units.some(u => u.toLowerCase() === trimmed.toLowerCase())) {
-      toast({ title: "Satuan sudah ada", variant: "destructive" });
-      return;
-    }
-    setUnits(prev => [...prev, trimmed]);
-    setNewUnit("");
+  const gudangWithUnits = useMemo(() => {
+    if (!detailedProducts) return [];
+    return detailedProducts.filter((p: any) => p.locationType === "gudang");
+  }, [detailedProducts]);
+
+  const getProductUnits = (product: any): string[] => {
+    const units = product.units || [];
+    if (units.length === 0) return [];
+    const sorted = [...units].sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    return sorted
+      .map((u: any) => u.unitName)
+      .filter((name: string) => name.toLowerCase() !== "pack" && name.toLowerCase() !== "gram");
   };
 
-  const removeUnit = (index: number) => {
-    const removed = units[index];
-    setUnits(prev => prev.filter((_, i) => i !== index));
-    setConversions(prev => prev.filter(c => c.fromUnit !== removed && c.toUnit !== removed));
+  const getDefaultBigUnit = (product: any): string => {
+    const bigUnits = getProductUnits(product);
+    return bigUnits.length > 0 ? bigUnits[0] : "";
   };
 
-  const addConversion = () => {
-    if (units.length < 2) return;
-    setConversions(prev => [...prev, { fromUnit: units[0], amount: 1, toUnit: units[1] || units[0] }]);
-  };
-
-  const updateConversion = (index: number, field: keyof ConversionRow, value: string | number) => {
-    setConversions(prev => prev.map((c, i) => i === index ? { ...c, [field]: value } : c));
-  };
-
-  const removeConversion = (index: number) => {
-    setConversions(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleSubmit = async () => {
-    if (units.length === 0) {
-      toast({ title: "Tambahkan minimal 1 satuan", variant: "destructive" });
-      return;
-    }
+  const handleExport = async () => {
     setLoading(true);
     try {
-      const endpoint = mode === "template" ? api.excel.gudangTemplate.path : api.excel.gudangExport.path;
-      const res = await fetch(endpoint, {
+      const selections: Record<number, string> = {};
+      gudangWithUnits.forEach((p: any) => {
+        selections[p.id] = unitSelections[p.id] || getDefaultBigUnit(p);
+      });
+
+      const res = await fetch(api.excel.gudangExport.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ units, conversions }),
+        body: JSON.stringify({ unitSelections: selections }),
         credentials: "include",
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.message || "Gagal");
+        throw new Error(err.message || "Gagal export");
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = mode === "template" ? "template_gudang.xlsx" : "export_gudang.xlsx";
+      a.download = "export_gudang.xlsx";
       a.click();
       URL.revokeObjectURL(url);
       onOpenChange(false);
@@ -1495,104 +1487,72 @@ function GudangExcelDialog({ open, onOpenChange, mode }: {
     }
   };
 
+  const productsWithBigUnits = gudangWithUnits.filter((p: any) => getProductUnits(p).length > 0);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>
-            {mode === "template" ? "Template Excel Gudang" : "Export Excel Gudang"}
-          </DialogTitle>
+          <DialogTitle>Export Excel Gudang</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div>
-            <label className="text-sm font-medium text-foreground mb-2 block">Daftar Satuan</label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Tentukan satuan yang akan menjadi kolom di Excel. Urutan dari besar ke kecil.
-            </p>
-            <div className="space-y-1.5 mb-2">
-              {units.map((unit, index) => (
-                <div key={index} className="flex items-center gap-2 p-2 rounded-md border border-border/50" data-testid={`unit-row-${index}`}>
-                  <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate text-xs">
-                    #{index + 1}
-                  </Badge>
-                  <span className="text-sm font-medium flex-1">{unit}</span>
-                  <Button variant="ghost" size="icon" onClick={() => removeUnit(index)} data-testid={`button-remove-unit-${index}`}>
-                    <X className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-            <div className="flex items-center gap-2">
-              <Input
-                placeholder="Nama satuan baru (cth: Karton)"
-                value={newUnit}
-                onChange={(e) => setNewUnit(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addUnit(); } }}
-                data-testid="input-new-unit"
-              />
-              <Button variant="outline" onClick={addUnit} data-testid="button-add-unit">
-                <Plus className="w-4 h-4 mr-1" />
-                Tambah
-              </Button>
-            </div>
-          </div>
+        <div className="space-y-4 py-2 flex-1 min-h-0 overflow-y-auto">
+          <p className="text-sm text-muted-foreground">
+            Format: 3 tingkat satuan (Satuan Besar, Pack, Gram). Pilih satuan besar untuk tiap produk yang memiliki lebih dari satu satuan.
+          </p>
 
-          <div>
-            <label className="text-sm font-medium text-foreground mb-2 block">Tabel Konversi Satuan</label>
-            <p className="text-xs text-muted-foreground mb-2">
-              Tentukan konversi antar satuan. Contoh: 1 Dus = 24 Pack
-            </p>
-            <div className="space-y-2 mb-2">
-              {conversions.map((conv, index) => (
-                <div key={index} className="flex items-center gap-2 flex-wrap" data-testid={`conversion-row-${index}`}>
-                  <span className="text-sm text-muted-foreground whitespace-nowrap">1</span>
-                  <Select value={conv.fromUnit} onValueChange={(v) => updateConversion(index, "fromUnit", v)}>
-                    <SelectTrigger className="w-24" data-testid={`select-from-unit-${index}`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-card border border-border">
-                      {units.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <span className="text-sm text-muted-foreground">=</span>
-                  <Input
-                    type="number"
-                    min={1}
-                    className="w-20"
-                    value={conv.amount}
-                    onChange={(e) => updateConversion(index, "amount", parseFloat(e.target.value) || 1)}
-                    data-testid={`input-conv-amount-${index}`}
-                  />
-                  <Select value={conv.toUnit} onValueChange={(v) => updateConversion(index, "toUnit", v)}>
-                    <SelectTrigger className="w-24" data-testid={`select-to-unit-${index}`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-card border border-border">
-                      {units.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <Button variant="ghost" size="icon" onClick={() => removeConversion(index)} data-testid={`button-remove-conv-${index}`}>
-                    <X className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              ))}
+          {productsWithBigUnits.length > 0 && (
+            <div>
+              <label className="text-sm font-medium text-foreground mb-2 block">Pilih Satuan Besar per Produk</label>
+              <div className="space-y-2 max-h-[40vh] overflow-y-auto border border-border/50 rounded-md p-3">
+                {productsWithBigUnits.map((product: any) => {
+                  const bigUnits = getProductUnits(product);
+                  const selected = unitSelections[product.id] || getDefaultBigUnit(product);
+                  return (
+                    <div key={product.id} className="flex items-center gap-3 py-1.5 border-b border-border/30 last:border-0" data-testid={`export-unit-row-${product.id}`}>
+                      <span className="text-sm flex-1 truncate">{product.productCode || product.sku} - {product.name}</span>
+                      <Select
+                        value={selected}
+                        onValueChange={(v) => setUnitSelections(prev => ({ ...prev, [product.id]: v }))}
+                      >
+                        <SelectTrigger className="w-28" data-testid={`select-big-unit-${product.id}`}>
+                          <SelectValue placeholder="Satuan" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border border-border">
+                          {bigUnits.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            {units.length >= 2 && (
-              <Button variant="outline" size="sm" onClick={addConversion} data-testid="button-add-conversion">
-                <Plus className="w-3.5 h-3.5 mr-1" />
-                Tambah Konversi
-              </Button>
-            )}
+          )}
+
+          {productsWithBigUnits.length === 0 && gudangWithUnits.length > 0 && (
+            <p className="text-sm text-muted-foreground italic">
+              Tidak ada produk yang memiliki satuan besar. Export akan menggunakan kolom Pack dan Gram saja.
+            </p>
+          )}
+
+          {gudangWithUnits.length === 0 && (
+            <p className="text-sm text-muted-foreground italic">
+              Belum ada produk gudang untuk diexport.
+            </p>
+          )}
+
+          <div className="text-xs text-muted-foreground bg-muted/30 p-3 rounded-md">
+            <p className="font-medium mb-1">Format kolom Excel:</p>
+            <p>Kode Produk | Nama Produk | Kategori | Sub Kategori | Satuan Besar | Isi per Satuan Besar (ke Pack) | Isi per Pack (ke Gram) | Stok (Satuan Besar) | Stok (Pack) | Stok (Gram)</p>
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-gudang-excel">
+        <div className="flex justify-end gap-2 pt-2 flex-shrink-0">
+          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-gudang-export">
             Batal
           </Button>
-          <Button onClick={handleSubmit} disabled={loading || units.length === 0} data-testid="button-submit-gudang-excel">
+          <Button onClick={handleExport} disabled={loading || gudangWithUnits.length === 0} data-testid="button-submit-gudang-export">
             {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Download className="w-4 h-4 mr-2" />}
-            {mode === "template" ? "Download Template" : "Export Data"}
+            Export Data
           </Button>
         </div>
       </DialogContent>
