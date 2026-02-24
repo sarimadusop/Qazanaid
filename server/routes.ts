@@ -3,24 +3,24 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api, buildUrl } from "@shared/routes";
 import { z } from "zod";
-import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { setupAuth, registerAuthRoutes, isAuthenticated } from "./auth";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import os from "os";
 import * as XLSX from "xlsx";
-import { authStorage } from "./replit_integrations/auth/storage";
+import { authStorage } from "./auth/storage";
 import archiver from "archiver";
 import { productPhotos, opnameRecordPhotos } from "@shared/schema";
 import { db } from "./db";
-import { ObjectStorageService, ObjectNotFoundError } from "./replit_integrations/object_storage";
+import { storageService } from "./lib/storage-provider";
 
 
-const upload = multer({ dest: "/tmp/uploads", limits: { fileSize: 10 * 1024 * 1024 } });
-const objectStorage = new ObjectStorageService();
+const upload = multer({ dest: path.join(os.tmpdir(), "kazana-uploads"), limits: { fileSize: 10 * 1024 * 1024 } });
 
 async function uploadToObjectStorage(file: Express.Multer.File): Promise<string> {
   const fileBuffer = fs.readFileSync(file.path);
-  const url = await objectStorage.uploadFileFromServer(
+  const url = await storageService.uploadFile(
     fileBuffer,
     file.originalname,
     file.mimetype || "application/octet-stream"
@@ -86,10 +86,10 @@ export async function registerRoutes(
     const allUsers = await db.select().from(users).where(
       or(eq(users.id, adminId), eq(users.adminId, adminId))
     );
-    
+
     const teamUserIds = new Set(allUsers.map(u => u.id));
     const teamRoles = roles.filter(r => teamUserIds.has(r.userId));
-    
+
     const enriched = teamRoles.map(r => {
       const user = allUsers.find(u => u.id === r.userId);
       return {
@@ -108,20 +108,20 @@ export async function registerRoutes(
     try {
       const input = api.roles.set.input.parse(req.body);
       const adminId = getUserId(req);
-      
+
       const { users } = await import("@shared/models/auth");
       const { db } = await import("./db");
       const { eq } = await import("drizzle-orm");
       const [targetUser] = await db.select().from(users).where(eq(users.id, input.userId));
-      
+
       if (!targetUser || (targetUser.id !== adminId && targetUser.adminId !== adminId)) {
         return res.status(403).json({ message: "Anda tidak bisa mengubah role user ini" });
       }
-      
+
       if (targetUser.id === adminId) {
         return res.status(400).json({ message: "Tidak bisa mengubah role sendiri" });
       }
-      
+
       const role = await storage.setUserRole(input);
       res.json(role);
     } catch (err) {
@@ -509,10 +509,12 @@ export async function registerRoutes(
         const safeName = record.product.name.replace(/[^a-zA-Z0-9]/g, "_");
 
         const appendPhotoToArchive = async (photoUrl: string, zipFilename: string) => {
-          if (photoUrl.startsWith("/objects/")) {
-            const result = await objectStorage.getObjectStream(photoUrl);
-            if (result) {
-              archive.append(result.stream as any, { name: zipFilename });
+          if (photoUrl.startsWith("http")) {
+            // Fetch from Supabase public URL
+            const response = await fetch(photoUrl);
+            if (response.ok) {
+              const arrayBuffer = await response.arrayBuffer();
+              archive.append(Buffer.from(arrayBuffer), { name: zipFilename });
             }
           } else {
             const relativePath = photoUrl.replace(/^\//, "");
@@ -607,7 +609,7 @@ export async function registerRoutes(
       return res.status(404).json({ message: 'Session not found' });
     }
     const { productId, actualStock, notes, unitValues } = req.body;
-    
+
     if (typeof productId !== 'number' || typeof actualStock !== 'number') {
       return res.status(400).json({ message: "Invalid input" });
     }

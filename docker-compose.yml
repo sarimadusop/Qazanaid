@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    container_name: kazana-app
+    restart: always
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - uploads:/app/uploads
+
+volumes:
+  uploads:

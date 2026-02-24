@@ -50,10 +50,10 @@ export function Sidebar() {
     <>
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between gap-2 px-4 py-3 bg-white/80 backdrop-blur-md border-b border-border/50">
         <div className="flex items-center gap-2">
-          <div className="bg-primary/10 p-1.5 rounded-lg">
-            <Package className="w-5 h-5 text-primary" />
+          <div className="bg-primary p-1.5 rounded-lg shadow-md shadow-primary/20">
+            <Package className="w-5 h-5 text-white" />
           </div>
-          <span className="font-display font-bold text-lg text-foreground">Stockify</span>
+          <span className="font-display font-bold text-lg text-foreground tracking-tight">Kazana</span>
         </div>
         <button onClick={() => setIsOpen(!isOpen)} className="p-2 -mr-2 text-muted-foreground" data-testid="button-mobile-menu">
           {isOpen ? <X /> : <Menu />}
@@ -61,17 +61,17 @@ export function Sidebar() {
       </div>
 
       <div className={cn(
-        "fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-border/50 shadow-2xl shadow-primary/5 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:h-screen lg:shadow-none",
+        "fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-border/50 shadow-xl shadow-black/5 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:h-screen lg:shadow-none",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex flex-col h-full">
           <div className="hidden lg:flex items-center gap-3 px-8 py-8">
-            <div className="bg-gradient-to-br from-primary to-accent p-2.5 rounded-xl shadow-lg shadow-primary/20">
+            <div className="bg-primary p-2.5 rounded-xl shadow-lg shadow-primary/30">
               <Package className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="font-display font-bold text-xl leading-none">Stockify</h1>
-              <p className="text-xs text-muted-foreground mt-1">Inventory Manager</p>
+              <h1 className="font-display font-bold text-xl leading-none text-foreground tracking-tight">Kazana</h1>
+              <p className="text-xs text-muted-foreground mt-1.5 font-medium">Professional Inventory</p>
             </div>
           </div>
 
@@ -84,7 +84,7 @@ export function Sidebar() {
                     className={cn(
                       "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 cursor-pointer group",
                       isActive
-                        ? "bg-primary/5 text-primary font-medium shadow-sm ring-1 ring-primary/10"
+                        ? "bg-primary/5 text-primary font-semibold shadow-sm ring-1 ring-primary/10"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                     )}
                     data-testid={`nav-${item.name.toLowerCase().replace(/\s+/g, "-")}`}
@@ -93,7 +93,7 @@ export function Sidebar() {
                       "w-5 h-5 transition-colors",
                       isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
                     )} />
-                    {item.name}
+                    <span className="text-[13px] tracking-wide">{item.name}</span>
                   </div>
                 </Link>
               );

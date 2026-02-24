@@ -49,16 +49,16 @@ function LoginPage() {
   const isPending = mode === "login" ? isLoggingIn : isRegistering;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/30 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-4">
-          <div className="mx-auto bg-gradient-to-br from-primary to-accent p-4 rounded-2xl shadow-lg shadow-primary/20 w-fit">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+      <Card className="w-full max-w-md shadow-2xl shadow-slate-200 border-none rounded-3xl overflow-hidden animate-enter">
+        <CardHeader className="text-center space-y-6 pt-10">
+          <div className="mx-auto bg-primary p-5 rounded-2xl shadow-xl shadow-primary/30 w-fit">
             <Package className="w-10 h-10 text-white" />
           </div>
-          <div>
-            <CardTitle className="text-2xl font-display">Stockify</CardTitle>
-            <CardDescription className="mt-1">
-              {mode === "login" ? "Masuk ke akun Anda" : "Daftar akun baru"}
+          <div className="space-y-2">
+            <CardTitle className="text-3xl font-display font-bold tracking-tight">Kazana</CardTitle>
+            <CardDescription className="text-sm font-medium">
+              {mode === "login" ? "Welcome back to your dashboard" : "Create your professional account"}
             </CardDescription>
           </div>
         </CardHeader>
@@ -323,9 +323,9 @@ function AnnouncementPopup() {
 
 function AuthenticatedApp() {
   return (
-    <div className="min-h-screen bg-muted/10 flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-slate-50/50 flex flex-col lg:flex-row">
       <Sidebar />
-      <main className="flex-1 p-4 lg:p-8 mt-14 lg:mt-0 overflow-y-auto h-screen">
+      <main className="flex-1 p-4 lg:p-10 mt-14 lg:mt-0 overflow-y-auto h-screen">
         <div className="max-w-7xl mx-auto">
           <Switch>
             <Route path="/" component={Dashboard} />
