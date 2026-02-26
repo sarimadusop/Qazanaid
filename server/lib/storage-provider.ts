@@ -1,45 +1,41 @@
-import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
-
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-    // We'll throw an error if these are missing in production to prevent silent failures
-    console.warn("SUPABASE_URL or SUPABASE_ANON_KEY is missing. Storage won't work.");
-}
-
-const supabase = createClient(supabaseUrl || '', supabaseKey || '');
+import path from 'path';
 
 export class StorageService {
-    private bucketName = 'kazana-photos';
+    private uploadDir = path.join(process.cwd(), 'uploads');
+
+    constructor() {
+        if (!fs.existsSync(this.uploadDir)) {
+            fs.mkdirSync(this.uploadDir, { recursive: true });
+        }
+    }
 
     async uploadFile(fileBuffer: Buffer, fileName: string, contentType: string): Promise<string> {
-        const { data, error } = await supabase.storage
-            .from(this.bucketName)
-            .upload(`uploads/${Date.now()}_${fileName}`, fileBuffer, {
-                contentType,
-                upsert: false
-            });
+        // Create a unique filename to avoid collisions
+        const uniqueFileName = `${Date.now()}_${fileName.replace(/\s+/g, '_')}`;
+        const filePath = path.join(this.uploadDir, uniqueFileName);
 
-        if (error) {
-            throw new Error(`Supabase upload failed: ${error.message}`);
+        try {
+            fs.writeFileSync(filePath, fileBuffer);
+            // Return the relative URL that the server can serve (via express.static)
+            // Example: /uploads/123456789_test.jpg
+            return `/uploads/${uniqueFileName}`;
+        } catch (error: any) {
+            throw new Error(`Local file upload failed: ${error.message}`);
         }
-
-        // Return the public URL
-        const { data: { publicUrl } } = supabase.storage
-            .from(this.bucketName)
-            .getPublicUrl(data.path);
-
-        return publicUrl;
     }
 
     async deleteFile(url: string): Promise<void> {
-        // Extract path from public URL if possible, or handle accordingly
-        // For now, we'll implement a robust way to get the path
-        const path = url.split(`${this.bucketName}/`)[1];
-        if (path) {
-            await supabase.storage.from(this.bucketName).remove([path]);
+        // Extract filename from the URL (e.g., /uploads/filename.jpg)
+        const fileName = path.basename(url);
+        const filePath = path.join(this.uploadDir, fileName);
+        
+        if (fs.existsSync(filePath)) {
+            try {
+                fs.unlinkSync(filePath);
+            } catch (error: any) {
+                console.error(`Failed to delete local file: ${error.message}`);
+            }
         }
     }
 }

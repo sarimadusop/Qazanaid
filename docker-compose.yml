@@ -9,8 +9,24 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/Qazanaid
     volumes:
-      - uploads:/app/uploads
+      - ./uploads:/app/uploads
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16-alpine
+    container_name: kazana-db
+    restart: always
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${POSTGRES_DB:-Qazanaid}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
 
 volumes:
-  uploads:
+  postgres_data:

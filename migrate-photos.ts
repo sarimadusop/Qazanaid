@@ -1,11 +1,9 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { createClient } from "@supabase/supabase-js";
-import fs from "fs";
 import path from "path";
 
 // --- CONFIGURATION ---
-// These will be picked up from Replit environment variables
 const DATABASE_URL = process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
@@ -19,112 +17,100 @@ if (!DATABASE_URL || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
 const pool = new pg.Pool({ connectionString: DATABASE_URL });
 const db = drizzle(pool);
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const BUCKET_NAME = "stockify-photos";
 
-// We'll need the ObjectStorageService if photos are in Replit's proprietary storage
-// Since we don't want to depend on the whole project structure, we'll use a fetch-based approach 
-// to the Replit sidecar if needed, or assume they are in the 'uploads/' folder.
+// Bucket name sesuai Supabase Storage Anda
+const BUCKET_NAME = "photos";
 
-async function uploadToSupabase(filePath: string, fileName: string): Promise<string | null> {
+// API Internal Replit Object Storage
+const REPLIT_API = "http://127.0.0.1:1106";
+
+async function migrateUrl(oldUrl: string, folder: string): Promise<string | null> {
     try {
-        let fileBuffer: Buffer;
+        // Ambil nama file asli dari URL
+        // Contoh: "/objects/uploads/abc123.jpg" -> "abc123.jpg"
+        const cleanFileName = path.basename(oldUrl);
 
-        // 1. Try local filesystem (standard uploads)
-        if (fs.existsSync(filePath)) {
-            fileBuffer = fs.readFileSync(filePath);
-        } else {
-            // 2. Try Replit Object Storage via internal sidecar (if applicable)
-            // Standard Replit path is http://127.0.0.1:1106
-            const objectName = filePath.replace(/^\//, "");
-            const response = await fetch(`http://127.0.0.1:1106/${objectName}`);
-            if (response.ok) {
-                const arrayBuffer = await response.arrayBuffer();
-                fileBuffer = Buffer.from(arrayBuffer);
-            } else {
-                console.warn(`⚠️ Could not find file: ${filePath}`);
-                return null;
-            }
+        // Fetch file dari Replit Object Storage internal
+        const res = await fetch(`${REPLIT_API}/uploads/${cleanFileName}`);
+        if (!res.ok) {
+            console.warn(`  ⚠️ Tidak ditemukan: ${cleanFileName} (HTTP ${res.status})`);
+            return null;
         }
+        const buf = Buffer.from(await res.arrayBuffer());
 
+        // Upload ke Supabase Storage ke folder yang sesuai
+        const uploadPath = `${folder}/${Date.now()}_${cleanFileName}`;
         const { data, error } = await supabase.storage
             .from(BUCKET_NAME)
-            .upload(`migrated/${Date.now()}_${fileName}`, fileBuffer, {
-                upsert: false
-            });
+            .upload(uploadPath, buf, { upsert: false });
 
         if (error) throw error;
 
+        // Dapatkan URL publik dari Supabase
         const { data: { publicUrl } } = supabase.storage
             .from(BUCKET_NAME)
             .getPublicUrl(data.path);
 
         return publicUrl;
     } catch (err) {
-        console.error(`❌ Failed to migrate ${fileName}:`, err);
+        console.error(`  ❌ Gagal:`, err);
         return null;
     }
 }
 
 async function migrate() {
-    console.log("🚀 Starting Photo Migration...");
+    console.log("🚀 Mulai migrasi foto...");
+    console.log(`🔗 Database: ${DATABASE_URL?.split('@')[1] || "unknown"}`);
+    console.log(`☁️  Supabase bucket: ${BUCKET_NAME}\n`);
 
     try {
-        // 1. Migrate Product Photos (Main Table)
-        const prods = await db.execute("SELECT id, photo_url FROM products WHERE photo_url IS NOT NULL AND photo_url NOT LIKE 'http%'");
-        console.log(`📦 Found ${prods.rowCount} products to check...`);
-
+        // 1. Foto produk utama
+        const prods = await db.execute("SELECT id, photo_url FROM products WHERE photo_url IS NOT NULL AND photo_url LIKE '/objects/%'");
+        console.log(`📦 Produk utama: ${prods.rowCount} foto ditemukan`);
         for (const row of prods.rows) {
-            const oldUrl = row.photo_url as string;
-            console.log(`  - Migrating product ${row.id}: ${oldUrl}`);
-            const newUrl = await uploadToSupabase(oldUrl, `product_${row.id}${path.extname(oldUrl)}`);
+            const newUrl = await migrateUrl(row.photo_url as string, "product-photos");
             if (newUrl) {
                 await db.execute(`UPDATE products SET photo_url = '${newUrl}' WHERE id = ${row.id}`);
-                console.log(`    ✅ Success!`);
+                console.log(`  ✅ Produk ID ${row.id} berhasil`);
             }
         }
 
-        // 2. Migrate Product Photos (Gallery Table)
-        const gallery = await db.execute("SELECT id, url FROM product_photos WHERE url IS NOT NULL AND url NOT LIKE 'http%'");
-        console.log(`🖼️ Found ${gallery.rowCount} gallery photos to check...`);
-
+        // 2. Galeri foto produk
+        const gallery = await db.execute("SELECT id, url FROM product_photos WHERE url IS NOT NULL AND url LIKE '/objects/%'");
+        console.log(`\n🖼️  Galeri Produk: ${gallery.rowCount} foto ditemukan`);
         for (const row of gallery.rows) {
-            const oldUrl = row.url as string;
-            const newUrl = await uploadToSupabase(oldUrl, `gallery_${row.id}${path.extname(oldUrl)}`);
+            const newUrl = await migrateUrl(row.url as string, "product-photos");
             if (newUrl) {
                 await db.execute(`UPDATE product_photos SET url = '${newUrl}' WHERE id = ${row.id}`);
-                console.log(`    ✅ Success!`);
+                console.log(`  ✅ Galeri ID ${row.id} berhasil`);
             }
         }
 
-        // 3. Migrate Opname Photos
-        const opname = await db.execute("SELECT id, photo_url FROM opname_records WHERE photo_url IS NOT NULL AND photo_url NOT LIKE 'http%'");
-        console.log(`📝 Found ${opname.rowCount} opname records to check...`);
-
+        // 3. Foto Opname Records (single)
+        const opname = await db.execute("SELECT id, photo_url FROM opname_records WHERE photo_url IS NOT NULL AND photo_url LIKE '/objects/%'");
+        console.log(`\n📝 Opname Records: ${opname.rowCount} foto ditemukan`);
         for (const row of opname.rows) {
-            const oldUrl = row.photo_url as string;
-            const newUrl = await uploadToSupabase(oldUrl, `opname_${row.id}${path.extname(oldUrl)}`);
+            const newUrl = await migrateUrl(row.photo_url as string, "opname-photos");
             if (newUrl) {
                 await db.execute(`UPDATE opname_records SET photo_url = '${newUrl}' WHERE id = ${row.id}`);
-                console.log(`    ✅ Success!`);
+                console.log(`  ✅ Opname ID ${row.id} berhasil`);
             }
         }
 
-        // 4. Migrate Opname Multi-Photos
-        const opnameGallery = await db.execute("SELECT id, url FROM opname_record_photos WHERE url IS NOT NULL AND url NOT LIKE 'http%'");
-        console.log(`📸 Found ${opnameGallery.rowCount} opname gallery photos to check...`);
-
+        // 4. Galeri foto Opname (multi)
+        const opnameGallery = await db.execute("SELECT id, url FROM opname_record_photos WHERE url IS NOT NULL AND url LIKE '/objects/%'");
+        console.log(`\n📸 Galeri Opname: ${opnameGallery.rowCount} foto ditemukan`);
         for (const row of opnameGallery.rows) {
-            const oldUrl = row.url as string;
-            const newUrl = await uploadToSupabase(oldUrl, `opname_gallery_${row.id}${path.extname(oldUrl)}`);
+            const newUrl = await migrateUrl(row.url as string, "opname-photos");
             if (newUrl) {
                 await db.execute(`UPDATE opname_record_photos SET url = '${newUrl}' WHERE id = ${row.id}`);
-                console.log(`    ✅ Success!`);
+                console.log(`  ✅ Galeri Opname ID ${row.id} berhasil`);
             }
         }
 
-        console.log("\n✨ Migration Finished!");
+        console.log("\n✨ Migrasi Selesai!");
     } catch (err) {
-        console.error("💥 Migration failed globally:", err);
+        console.error("\n💥 Migrasi gagal:", err);
     } finally {
         await pool.end();
     }
