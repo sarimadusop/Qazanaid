@@ -421,51 +421,49 @@ export default function Products() {
         </div>
 
         <div className="flex flex-col lg:flex-row lg:items-center gap-4 border-t border-border/10 pt-6">
-          {!forcedType && (
-            <div className="bg-white/50 p-1 rounded-2xl border border-border/50 shadow-inner flex items-center min-w-[300px]">
-              <button
-                onClick={() => setLocationType("toko")}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300",
-                  locationType === "toko"
-                    ? "bg-blue-600 text-white shadow-lg shadow-blue-200 scale-[1.02]"
-                    : "text-muted-foreground hover:bg-blue-50/50"
-                )}
-                data-testid="button-mode-toko"
-              >
-                <Store className="w-4 h-4 font-bold" />
-                Mode Toko
-              </button>
-              <button
-                onClick={() => setLocationType("gudang")}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300",
-                  locationType === "gudang"
-                    ? "bg-amber-600 text-white shadow-lg shadow-amber-200 scale-[1.02]"
-                    : "text-muted-foreground hover:bg-amber-50/50"
-                )}
-                data-testid="button-mode-gudang"
-              >
-                <Warehouse className="w-4 h-4 font-bold" />
-                Mode Gudang
-              </button>
-              {showAllTabs && (
-                <button
-                  onClick={() => setLocationType("semua")}
-                  className={cn(
-                    "flex-1 flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300",
-                    locationType === "semua"
-                      ? "bg-slate-800 text-white shadow-lg shadow-slate-200 scale-[1.02]"
-                      : "text-muted-foreground hover:bg-slate-50"
-                  )}
-                  data-testid="button-mode-semua"
-                >
-                  <Package className="w-4 h-4 font-bold" />
-                  Semua
-                </button>
+          <div className="bg-white/50 p-1 rounded-2xl border border-border/50 shadow-inner flex items-center min-w-[300px]">
+            <button
+              onClick={() => setLocationType("toko")}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300",
+                locationType === "toko"
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-200 scale-[1.02]"
+                  : "text-muted-foreground hover:bg-blue-50/50"
               )}
-            </div>
-          )}
+              data-testid="button-mode-toko"
+            >
+              <Store className="w-4 h-4 font-bold" />
+              Mode Toko
+            </button>
+            <button
+              onClick={() => setLocationType("gudang")}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300",
+                locationType === "gudang"
+                  ? "bg-amber-600 text-white shadow-lg shadow-amber-200 scale-[1.02]"
+                  : "text-muted-foreground hover:bg-amber-50/50"
+              )}
+              data-testid="button-mode-gudang"
+            >
+              <Warehouse className="w-4 h-4 font-bold" />
+              Mode Gudang
+            </button>
+            {showAllTabs && (
+              <button
+                onClick={() => setLocationType("semua")}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300",
+                  locationType === "semua"
+                    ? "bg-slate-800 text-white shadow-lg shadow-slate-200 scale-[1.02]"
+                    : "text-muted-foreground hover:bg-slate-50"
+                )}
+                data-testid="button-mode-semua"
+              >
+                <Package className="w-4 h-4 font-bold" />
+                Semua
+              </button>
+            )}
+          </div>
 
           <div className="flex items-center gap-3 flex-wrap flex-1">
             <div className="relative flex-1 min-w-[200px] max-w-xs group">

@@ -19,8 +19,7 @@ export function Sidebar() {
   const navigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
     ...(!isStockCounterOnly ? [
-      { name: "SKU Toko", href: "/products?type=toko", icon: Store },
-      { name: "SKU Gudang", href: "/products?type=gudang", icon: Warehouse }
+      { name: "Daftar SKU Produk", href: "/products", icon: Box }
     ] : []),
     { name: "Opname Sessions", href: "/sessions", icon: ClipboardList },
     ...(isAdmin ? [{ name: "User Roles", href: "/roles", icon: Shield }] : []),
