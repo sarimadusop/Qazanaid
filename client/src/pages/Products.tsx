@@ -36,6 +36,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -409,9 +410,25 @@ export default function Products() {
 
       <div className="bg-card border border-border rounded-md overflow-hidden min-h-[400px]">
         {isInitialLoading || deferredLoading ? (
-          <div className="p-12 flex flex-col items-center justify-center space-y-4">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground animate-pulse">Memuat data produk...</p>
+          <div className="p-0">
+            <div className="bg-muted/30 border-b border-border/50 p-4">
+              <div className="flex gap-4">
+                <Skeleton className="h-4 w-10" />
+                <Skeleton className="h-4 w-12" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-40" />
+              </div>
+            </div>
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="p-4 border-b border-border/50 flex items-center gap-4">
+                <Skeleton className="h-10 w-10 rounded-md" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 flex-1" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-8 w-8 rounded-full" />
+              </div>
+            ))}
           </div>
         ) : filteredProducts?.length === 0 ? (
           <div className="p-16 text-center">
