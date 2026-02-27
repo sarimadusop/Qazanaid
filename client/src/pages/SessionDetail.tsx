@@ -2,7 +2,7 @@ import { useSession, useUpdateRecord, useCompleteSession, useUploadOpnamePhoto, 
 import { useCategories, useCategoryPriorities, useSetCategoryPriorities } from "@/hooks/use-products";
 import { useRole } from "@/hooks/use-role";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, CheckCircle2, Download, Search, Loader2, Filter, Camera, Image, X, FileArchive, Trash2, Plus, Printer, MapPin, User, CalendarDays, CheckSquare, ListOrdered, ArrowUp, ArrowDown, GripVertical, ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, Search, Loader2, Filter, Camera, Image, X, FileArchive, Trash2, Plus, Printer, MapPin, User, CalendarDays, CheckSquare, ListOrdered, ArrowUp, ArrowDown, GripVertical, ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
 import { BatchPhotoUpload } from "@/components/BatchPhotoUpload";
 import { useBackgroundUpload } from "@/components/BackgroundUpload";
 import { Button } from "@/components/ui/button";
