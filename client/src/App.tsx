@@ -49,9 +49,9 @@ function LoginPage() {
   const isPending = mode === "login" ? isLoggingIn : isRegistering;
 
   return (
-    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-[#001D4D] overflow-hidden">
+    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-[#0044CC] overflow-hidden">
       {/* Left Side: Branding & Trust */}
-      <div className="hidden lg:flex flex-col justify-between p-12 bg-gradient-to-br from-[#003B95] to-[#001D4D] relative">
+      <div className="hidden lg:flex flex-col justify-between p-16 bg-gradient-to-br from-[#0066FF] to-[#0044CC] relative">
         <div className="z-10 flex items-center gap-3">
           <div className="bg-white/10 p-2 rounded-xl backdrop-blur-md">
             <Package className="w-8 h-8 text-white" />
@@ -59,17 +59,11 @@ function LoginPage() {
           <span className="text-3xl font-display font-bold text-white tracking-tight">Kazana</span>
         </div>
 
-        <div className="z-10 space-y-4">
-          <div className="flex gap-4 opacity-50">
-            <div className="flex flex-col items-center border border-white/40 p-2 rounded-lg grayscale invert">
-              <Shield className="w-8 h-8 mb-1" />
-              <span className="text-[8px] font-bold">ISO 9001</span>
-            </div>
-            <div className="flex flex-col items-center border border-white/40 p-2 rounded-lg grayscale invert">
-              <Lock className="w-8 h-8 mb-1" />
-              <span className="text-[8px] font-bold">ISO 27001</span>
-            </div>
-          </div>
+        <div className="z-10 max-w-md">
+          <h2 className="text-4xl font-display font-bold text-white mb-4">Professional Inventory Management</h2>
+          <p className="text-blue-100/70 text-lg leading-relaxed">
+            Everything you need to track, manage, and optimize your stock in one secure place.
+          </p>
         </div>
 
         {/* Ambient background decoration */}
@@ -78,9 +72,9 @@ function LoginPage() {
       </div>
 
       {/* Right Side: Login Form */}
-      <div className="flex flex-col items-center justify-center p-6 lg:p-12 bg-gradient-to-br from-[#001D4D] to-[#003B95] relative">
+      <div className="flex flex-col items-center justify-center p-6 lg:p-12 bg-[#0044CC] lg:bg-gradient-to-br lg:from-[#0055EE] lg:to-[#0033BB] relative">
         <div className="w-full max-w-md z-10 animate-enter">
-          <div className="bg-[#002D70]/40 backdrop-blur-xl border border-white/10 rounded-[2rem] p-8 lg:p-10 shadow-2xl">
+          <div className="bg-white/10 backdrop-blur-2xl border border-white/20 rounded-[2.5rem] p-8 lg:p-12 shadow-[0_20px_50px_rgba(0,0,0,0.3)]">
             <div className="mb-10 text-center lg:text-left">
               <h2 className="text-3xl lg:text-4xl font-bold text-white mb-2">
                 {mode === "login" ? "Secure Client Login" : "Create Account"}
@@ -104,17 +98,17 @@ function LoginPage() {
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
                       placeholder="John"
-                      className="bg-[#001D4D]/50 border-white/10 text-white h-12 focus:ring-blue-500/50"
+                      className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-12 focus:ring-blue-500/50"
                       data-testid="input-first-name"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-blue-200/80 uppercase tracking-wider ml-1">Last Name</label>
+                    <label className="text-xs font-bold text-white/70 uppercase tracking-wider ml-1">Last Name</label>
                     <Input
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
                       placeholder="Doe"
-                      className="bg-[#001D4D]/50 border-white/10 text-white h-12 focus:ring-blue-500/50"
+                      className="bg-white/5 border-white/10 text-white placeholder:text-white/30 h-12 focus:ring-blue-500/50"
                       data-testid="input-last-name"
                     />
                   </div>
@@ -122,12 +116,12 @@ function LoginPage() {
               )}
 
               <div className="space-y-2">
-                <label className="text-xs font-bold text-blue-200/80 uppercase tracking-wider ml-1">Username</label>
+                <label className="text-xs font-bold text-white/70 uppercase tracking-wider ml-1">Username</label>
                 <Input
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Enter your username"
-                  className="bg-[#001D4D]/50 border-white/10 text-white h-12 focus:ring-blue-500/50 placeholder:text-white/20"
+                  className="bg-white/5 border-white/10 text-white h-12 focus:ring-blue-500/50 placeholder:text-white/30"
                   autoComplete="username"
                   required
                   data-testid="input-username"
@@ -136,11 +130,11 @@ function LoginPage() {
 
               <div className="space-y-2">
                 <div className="flex justify-between items-center ml-1">
-                  <label className="text-xs font-bold text-blue-200/80 uppercase tracking-wider">Password</label>
+                  <label className="text-xs font-bold text-white/70 uppercase tracking-wider">Password</label>
                   {mode === "login" && (
                     <button
                       type="button"
-                      className="text-xs font-medium text-blue-300 hover:text-white transition-colors"
+                      className="text-xs font-medium text-blue-200 hover:text-white transition-colors"
                       onClick={() => setShowForgotInfo(true)}
                     >
                       Forgot?
@@ -152,7 +146,7 @@ function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Password"
-                  className="bg-[#001D4D]/50 border-white/10 text-white h-12 focus:ring-blue-500/50 placeholder:text-white/20"
+                  className="bg-white/5 border-white/10 text-white h-12 focus:ring-blue-500/50 placeholder:text-white/30"
                   autoComplete={mode === "login" ? "current-password" : "new-password"}
                   required
                   data-testid="input-password"
@@ -163,9 +157,9 @@ function LoginPage() {
                 <input
                   type="checkbox"
                   id="remember"
-                  className="w-4 h-4 rounded border-white/20 bg-[#001D4D] text-blue-600 focus:ring-blue-500/50 ring-offset-[#001D4D]"
+                  className="w-4 h-4 rounded border-white/20 bg-blue-900 text-blue-600 focus:ring-blue-500/50 ring-offset-blue-900"
                 />
-                <label htmlFor="remember" className="text-sm text-blue-200/60 font-medium cursor-pointer">Remember Me</label>
+                <label htmlFor="remember" className="text-sm text-white/50 font-medium cursor-pointer">Remember Me</label>
               </div>
 
               <Button
