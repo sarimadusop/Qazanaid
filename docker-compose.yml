@@ -9,6 +9,7 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+      - SESSION_SECRET=${SESSION_SECRET}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/Qazanaid
     volumes:
       - ./uploads:/app/uploads

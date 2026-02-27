@@ -60,7 +60,19 @@ export default function Products() {
   const defaultTab = getDefaultProductTab(role);
   const [locationType, setLocationType] = useState<string>(defaultTab);
   const queryLocationType = locationType === "semua" ? undefined : locationType;
-  const { data: products, isLoading } = useProducts(queryLocationType);
+  const { data: products, isLoading: isInitialLoading } = useProducts(queryLocationType);
+  const [deferredLoading, setDeferredLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isInitialLoading) {
+      // Small timeout to ensure the layout renders first before the heavy table
+      const timer = setTimeout(() => setDeferredLoading(false), 50);
+      return () => clearTimeout(timer);
+    } else {
+      setDeferredLoading(true);
+    }
+  }, [isInitialLoading]);
+
   const { data: categories } = useCategories();
   const { data: categoryPriorities } = useCategoryPriorities();
   const showAllTabs = role === "admin" || role === "sku_manager" || role === "stock_counter";
@@ -395,10 +407,11 @@ export default function Products() {
 
 
 
-      <div className="bg-card border border-border rounded-md overflow-hidden">
-        {isLoading ? (
-          <div className="p-12 flex justify-center">
+      <div className="bg-card border border-border rounded-md overflow-hidden min-h-[400px]">
+        {isInitialLoading || deferredLoading ? (
+          <div className="p-12 flex flex-col items-center justify-center space-y-4">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground animate-pulse">Memuat data produk...</p>
           </div>
         ) : filteredProducts?.length === 0 ? (
           <div className="p-16 text-center">
