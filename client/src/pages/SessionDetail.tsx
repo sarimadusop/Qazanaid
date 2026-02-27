@@ -442,7 +442,9 @@ export default function SessionDetail() {
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[20%]">Produk</th>
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[10%]">Kategori</th>
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[15%] text-center">Jumlah Aktual</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[12%] text-center">Retur</th>
+                {isCompleted && (
+                  <th className="px-6 py-4 font-medium text-muted-foreground w-[12%] text-center">Retur</th>
+                )}
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[23%] text-center">Foto</th>
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[10%]">Status</th>
               </tr>
@@ -454,6 +456,7 @@ export default function SessionDetail() {
                   record={record}
                   sessionId={sessionId}
                   readOnly={isCompleted || !canCount}
+                  isCompleted={isCompleted}
                   isGudang={session.locationType === "gudang"}
                   currentCounter={currentCounter}
                 />
@@ -471,6 +474,7 @@ export default function SessionDetail() {
             record={record}
             sessionId={sessionId}
             readOnly={isCompleted || !canCount}
+            isCompleted={isCompleted}
             isGudang={session.locationType === "gudang"}
             currentCounter={currentCounter}
           />
@@ -959,7 +963,7 @@ function PhotoLightbox({ open, onOpenChange, photos, initialIndex, title, produc
   );
 }
 
-const RecordRow = memo(({ record, sessionId, readOnly, isGudang, currentCounter }: { record: OpnameRecordWithProduct; sessionId: number; readOnly: boolean; isGudang: boolean; currentCounter: string }) => {
+const RecordRow = memo(({ record, sessionId, readOnly, isCompleted, isGudang, currentCounter }: { record: OpnameRecordWithProduct; sessionId: number; readOnly: boolean; isCompleted: boolean; isGudang: boolean; currentCounter: string }) => {
   const updateRecord = useUpdateRecord();
   const uploadPhoto = useUploadRecordPhoto();
   const deletePhoto = useDeleteRecordPhoto();
@@ -1189,23 +1193,25 @@ const RecordRow = memo(({ record, sessionId, readOnly, isGudang, currentCounter 
             </div>
           )}
         </td>
-        <td className="px-6 py-4">
-          <div className="flex justify-center">
-            <Input
-              type="number"
-              className={cn(
-                "w-20 text-center transition-all",
-                returned !== "" && returned !== "0" && "border-amber-400/50 bg-amber-50 text-amber-700 font-bold"
-              )}
-              placeholder="0"
-              value={returned}
-              onChange={(e) => setReturned(e.target.value)}
-              onBlur={hasUnits ? handleUnitBlur : handleBlur}
-              disabled={updateRecord.isPending}
-              data-testid={`input-returned-${record.productId}`}
-            />
-          </div>
-        </td>
+        {isCompleted && (
+          <td className="px-6 py-4">
+            <div className="flex justify-center">
+              <Input
+                type="number"
+                className={cn(
+                  "w-20 text-center transition-all",
+                  returned !== "" && returned !== "0" && "border-amber-400/50 bg-amber-50 text-amber-700 font-bold"
+                )}
+                placeholder="0"
+                value={returned}
+                onChange={(e) => setReturned(e.target.value)}
+                onBlur={hasUnits ? handleUnitBlur : handleBlur}
+                disabled={!canCount}
+                data-testid={`input-returned-${record.productId}`}
+              />
+            </div>
+          </td>
+        )}
         <td className="px-6 py-3">
           <div className="flex items-center justify-center gap-1 flex-wrap">
             {allPhotos.length > 0 ? (
@@ -1403,7 +1409,7 @@ function SessionCategoryPriorityDialog({ open, onOpenChange, categories }: {
   );
 }
 
-const MobileRecordCard = memo(({ record, sessionId, readOnly, isGudang, currentCounter }: { record: OpnameRecordWithProduct; sessionId: number; readOnly: boolean; isGudang: boolean; currentCounter: string }) => {
+const MobileRecordCard = memo(({ record, sessionId, readOnly, isCompleted, isGudang, currentCounter }: { record: OpnameRecordWithProduct; sessionId: number; readOnly: boolean; isCompleted: boolean; isGudang: boolean; currentCounter: string }) => {
   const updateRecord = useUpdateRecord();
   const uploadPhoto = useUploadRecordPhoto();
   const deletePhoto = useDeleteRecordPhoto();
@@ -1535,18 +1541,20 @@ const MobileRecordCard = memo(({ record, sessionId, readOnly, isGudang, currentC
             />
           )}
         </div>
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider text-amber-600">Retur</label>
-          <Input
-            type="number"
-            className={cn("h-10 text-center font-bold text-lg", returned !== "" && returned !== "0" ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-muted/10")}
-            placeholder="0"
-            value={returned}
-            onChange={(e) => setReturned(e.target.value)}
-            onBlur={hasUnits ? handleUnitBlur : handleBlur}
-            disabled={readOnly}
-          />
-        </div>
+        {isCompleted && (
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider text-amber-600">Retur</label>
+            <Input
+              type="number"
+              className={cn("h-10 text-center font-bold text-lg", returned !== "" && returned !== "0" ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-muted/10")}
+              placeholder="0"
+              value={returned}
+              onChange={(e) => setReturned(e.target.value)}
+              onBlur={hasUnits ? handleUnitBlur : handleBlur}
+              disabled={false} // Always editable when complete if user has right role. The Select Petugas logic handles role protection elsewhere, but for simplicity we keep it editable here if the container is shown.
+            />
+          </div>
+        )}
       </div>
 
       <div className="pt-2 border-t border-border/50 flex items-center justify-between">
@@ -1576,6 +1584,7 @@ const MobileRecordCard = memo(({ record, sessionId, readOnly, isGudang, currentC
                 input.type = "file";
                 input.multiple = true;
                 input.accept = "image/*";
+                input.capture = "environment";
                 input.onchange = (e) => {
                   const files = Array.from((e.target as HTMLInputElement).files || []);
                   if (files.length > 0) {
