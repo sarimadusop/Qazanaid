@@ -20,6 +20,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 
 const sessionFormSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -266,14 +267,14 @@ function CreateSessionDialog({
                     value={selectedLocation}
                     onValueChange={(val) => {
                       setSelectedLocation(val);
-                      setSelectedStaff("");
+                      setSelectedStaff([]);
                     }}
                     data-testid="select-location"
                   >
                     <SelectTrigger data-testid="select-location-trigger">
                       <SelectValue placeholder="Pilih lokasi" />
                     </SelectTrigger>
-                    <SelectContent className="bg-card border border-border">
+                    <SelectContent className="bg-white border border-border shadow-xl">
                       <SelectItem value="toko" data-testid="select-location-toko">
                         <div className="flex items-center gap-2">
                           <Store className="w-4 h-4" />

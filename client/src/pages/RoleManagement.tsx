@@ -187,7 +187,7 @@ export default function RoleManagement() {
                       <SelectTrigger className="w-40" data-testid={`select-role-${user.userId}`}>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-card border border-border">
+                      <SelectContent className="bg-white border border-border shadow-xl">
                         <SelectItem value="sku_manager">SKU Manager</SelectItem>
                         <SelectItem value="stock_counter">Stock Counter</SelectItem>
                         <SelectItem value="stock_counter_toko">Stock Counter Toko</SelectItem>
@@ -429,7 +429,7 @@ function CreateUserDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
               <SelectTrigger data-testid="select-new-role">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-card border border-border">
+              <SelectContent className="bg-white border border-border shadow-xl">
                 <SelectItem value="sku_manager">SKU Manager</SelectItem>
                 <SelectItem value="stock_counter">Stock Counter</SelectItem>
                 <SelectItem value="stock_counter_toko">Stock Counter Toko</SelectItem>

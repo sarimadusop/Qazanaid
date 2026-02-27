@@ -521,7 +521,7 @@ function DownloadDialog({ open, onOpenChange, records, onDownload }: {
               <SelectTrigger data-testid="select-download-mode">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-card border border-border">
+              <SelectContent className="bg-white border border-border shadow-xl">
                 <SelectItem value="all" data-testid="option-download-all">Semua Foto</SelectItem>
                 <SelectItem value="products" data-testid="option-download-products">Pilih Produk</SelectItem>
                 <SelectItem value="date" data-testid="option-download-date">Pilih Tanggal</SelectItem>

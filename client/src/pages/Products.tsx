@@ -419,11 +419,11 @@ export default function Products() {
               />
             </div>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-40" data-testid="select-category-filter">
+              <SelectTrigger className="w-40 bg-white" data-testid="select-category-filter">
                 <Filter className="w-4 h-4 mr-2 text-muted-foreground" />
                 <SelectValue placeholder="Semua Kategori" />
               </SelectTrigger>
-              <SelectContent className="bg-card border border-border">
+              <SelectContent className="bg-white border border-border shadow-xl">
                 <SelectItem value="all">Semua Kategori</SelectItem>
                 {categories?.map((cat) => (
                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>

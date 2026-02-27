@@ -73,7 +73,7 @@ export default function StaffManagement() {
               <Filter className="w-4 h-4 mr-2 text-muted-foreground" />
               <SelectValue placeholder="Semua Lokasi" />
             </SelectTrigger>
-            <SelectContent className="bg-card border border-border">
+            <SelectContent className="bg-white border border-border shadow-xl">
               <SelectItem value="all">Semua Lokasi</SelectItem>
               <SelectItem value="toko">Toko</SelectItem>
               <SelectItem value="gudang">Gudang</SelectItem>

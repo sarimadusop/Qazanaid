@@ -71,8 +71,8 @@ export default function FeedbackPage() {
   // Sort feedback by newest first
   const sortedFeedback = feedbackList
     ? [...feedbackList].sort((a, b) => {
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      })
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    })
     : [];
 
   // Filter feedback based on user role
@@ -106,7 +106,7 @@ export default function FeedbackPage() {
                       <SelectTrigger className="w-full" data-testid="select-feedback-type">
                         <SelectValue placeholder="Pilih tipe feedback" />
                       </SelectTrigger>
-                      <SelectContent className="bg-card border border-border">
+                      <SelectContent className="bg-white border border-border shadow-xl">
                         <SelectItem value="kritik" data-testid="option-kritik">
                           Kritik
                         </SelectItem>

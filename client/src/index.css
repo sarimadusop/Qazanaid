@@ -32,6 +32,12 @@
   --input: 214 32% 91%;
   --ring: 221 83% 45%;
 
+  --card: 0 0% 100%;
+  --card-foreground: 224 71% 4%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 224 71% 4%;
+
   --radius: 0.625rem;
 }
 
