@@ -19,7 +19,7 @@ import FeedbackPage from "@/pages/FeedbackPage";
 import MotivationPage from "@/pages/MotivationPage";
 import NotFound from "@/pages/not-found";
 import { BackgroundUploadProvider } from "@/components/BackgroundUpload";
-import { Loader2, Package, AlertCircle, Info, Megaphone, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Package, AlertCircle, Info, Megaphone, ChevronLeft, ChevronRight, Shield, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -49,143 +49,191 @@ function LoginPage() {
   const isPending = mode === "login" ? isLoggingIn : isRegistering;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <Card className="w-full max-w-md shadow-2xl shadow-slate-200 border-none rounded-3xl overflow-hidden animate-enter">
-        <CardHeader className="text-center space-y-6 pt-10">
-          <div className="mx-auto bg-primary p-5 rounded-2xl shadow-xl shadow-primary/30 w-fit">
-            <Package className="w-10 h-10 text-white" />
+    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-[#001D4D] overflow-hidden">
+      {/* Left Side: Branding & Trust */}
+      <div className="hidden lg:flex flex-col justify-between p-12 bg-gradient-to-br from-[#003B95] to-[#001D4D] relative">
+        <div className="z-10 flex items-center gap-3">
+          <div className="bg-white/10 p-2 rounded-xl backdrop-blur-md">
+            <Package className="w-8 h-8 text-white" />
           </div>
-          <div className="space-y-2">
-            <CardTitle className="text-3xl font-display font-bold tracking-tight">Kazana</CardTitle>
-            <CardDescription className="text-sm font-medium">
-              {mode === "login" ? "Welcome back to your dashboard" : "Create your professional account"}
-            </CardDescription>
+          <span className="text-3xl font-display font-bold text-white tracking-tight">Kazana</span>
+        </div>
+
+        <div className="z-10 space-y-4">
+          <div className="flex gap-4 opacity-50">
+            <div className="flex flex-col items-center border border-white/40 p-2 rounded-lg grayscale invert">
+              <Shield className="w-8 h-8 mb-1" />
+              <span className="text-[8px] font-bold">ISO 9001</span>
+            </div>
+            <div className="flex flex-col items-center border border-white/40 p-2 rounded-lg grayscale invert">
+              <Lock className="w-8 h-8 mb-1" />
+              <span className="text-[8px] font-bold">ISO 27001</span>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm" data-testid="text-auth-error">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                {error.message}
-              </div>
-            )}
+        </div>
 
-            {mode === "register" && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">Nama Depan</label>
-                  <Input
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    placeholder="John"
-                    data-testid="input-first-name"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">Nama Belakang</label>
-                  <Input
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    placeholder="Doe"
-                    data-testid="input-last-name"
-                  />
-                </div>
-              </div>
-            )}
+        {/* Ambient background decoration */}
+        <div className="absolute top-1/4 -left-20 w-80 h-80 bg-blue-500/20 rounded-full blur-[120px]" />
+        <div className="absolute bottom-1/4 -right-10 w-60 h-60 bg-indigo-500/10 rounded-full blur-[100px]" />
+      </div>
 
-            <div>
-              <label className="text-sm font-medium text-foreground mb-1.5 block">Username</label>
-              <Input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="username"
-                autoComplete="username"
-                required
-                data-testid="input-username"
-              />
+      {/* Right Side: Login Form */}
+      <div className="flex flex-col items-center justify-center p-6 lg:p-12 bg-gradient-to-br from-[#001D4D] to-[#003B95] relative">
+        <div className="w-full max-w-md z-10 animate-enter">
+          <div className="bg-[#002D70]/40 backdrop-blur-xl border border-white/10 rounded-[2rem] p-8 lg:p-10 shadow-2xl">
+            <div className="mb-10 text-center lg:text-left">
+              <h2 className="text-3xl lg:text-4xl font-bold text-white mb-2">
+                {mode === "login" ? "Secure Client Login" : "Create Account"}
+              </h2>
+              <p className="text-blue-200/60 font-medium">Please enter your credentials to proceed</p>
             </div>
 
-            <div>
-              <label className="text-sm font-medium text-foreground mb-1.5 block">Password</label>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="******"
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
-                required
-                data-testid="input-password"
-              />
-            </div>
-
-            <Button type="submit" className="w-full" disabled={isPending} data-testid="button-submit-auth">
-              {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              {mode === "login" ? "Masuk" : "Daftar"}
-            </Button>
-
-            {mode === "login" && (
-              <div className="text-center">
-                <button
-                  type="button"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => setShowForgotInfo(true)}
-                  data-testid="button-forgot-password"
-                >
-                  Lupa Password?
-                </button>
-              </div>
-            )}
-
-            <div className="text-center text-sm text-muted-foreground">
-              {mode === "login" ? (
-                <span>
-                  Belum punya akun?{" "}
-                  <button
-                    type="button"
-                    className="text-primary font-medium hover:underline"
-                    onClick={() => { setMode("register"); setUsername(""); setPassword(""); }}
-                    data-testid="button-switch-register"
-                  >
-                    Daftar di sini
-                  </button>
-                </span>
-              ) : (
-                <span>
-                  Sudah punya akun?{" "}
-                  <button
-                    type="button"
-                    className="text-primary font-medium hover:underline"
-                    onClick={() => { setMode("login"); setUsername(""); setPassword(""); }}
-                    data-testid="button-switch-login"
-                  >
-                    Masuk di sini
-                  </button>
-                </span>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {error && (
+                <div className="flex items-center gap-2 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200 text-sm" data-testid="text-auth-error">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  {error.message}
+                </div>
               )}
+
+              {mode === "register" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-blue-200/80 uppercase tracking-wider ml-1">First Name</label>
+                    <Input
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="John"
+                      className="bg-[#001D4D]/50 border-white/10 text-white h-12 focus:ring-blue-500/50"
+                      data-testid="input-first-name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-blue-200/80 uppercase tracking-wider ml-1">Last Name</label>
+                    <Input
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Doe"
+                      className="bg-[#001D4D]/50 border-white/10 text-white h-12 focus:ring-blue-500/50"
+                      data-testid="input-last-name"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-blue-200/80 uppercase tracking-wider ml-1">Username</label>
+                <Input
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter your username"
+                  className="bg-[#001D4D]/50 border-white/10 text-white h-12 focus:ring-blue-500/50 placeholder:text-white/20"
+                  autoComplete="username"
+                  required
+                  data-testid="input-username"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-xs font-bold text-blue-200/80 uppercase tracking-wider">Password</label>
+                  {mode === "login" && (
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-blue-300 hover:text-white transition-colors"
+                      onClick={() => setShowForgotInfo(true)}
+                    >
+                      Forgot?
+                    </button>
+                  )}
+                </div>
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                  className="bg-[#001D4D]/50 border-white/10 text-white h-12 focus:ring-blue-500/50 placeholder:text-white/20"
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  required
+                  data-testid="input-password"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 px-1">
+                <input
+                  type="checkbox"
+                  id="remember"
+                  className="w-4 h-4 rounded border-white/20 bg-[#001D4D] text-blue-600 focus:ring-blue-500/50 ring-offset-[#001D4D]"
+                />
+                <label htmlFor="remember" className="text-sm text-blue-200/60 font-medium cursor-pointer">Remember Me</label>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full h-12 bg-blue-600 hover:bg-blue-500 text-white font-bold text-lg rounded-xl shadow-lg shadow-blue-900/40 transition-all active:scale-95"
+                disabled={isPending}
+                data-testid="button-submit-auth"
+              >
+                {isPending && <Loader2 className="w-5 h-5 mr-3 animate-spin" />}
+                {mode === "login" ? "Login" : "Sign Up"}
+              </Button>
+
+              <div className="text-center pt-4">
+                <p className="text-sm text-blue-200/60 font-medium">
+                  {mode === "login" ? (
+                    <>
+                      Not a member yet?{" "}
+                      <button
+                        type="button"
+                        className="text-white hover:underline font-bold"
+                        onClick={() => { setMode("register"); setUsername(""); setPassword(""); }}
+                        data-testid="button-switch-register"
+                      >
+                        Create a New Account
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      Already have an account?{" "}
+                      <button
+                        type="button"
+                        className="text-white hover:underline font-bold"
+                        onClick={() => { setMode("login"); setUsername(""); setPassword(""); }}
+                        data-testid="button-switch-login"
+                      >
+                        Login Here
+                      </button>
+                    </>
+                  )}
+                </p>
+              </div>
+            </form>
+          </div>
+
+          <div className="mt-8 text-center lg:hidden">
+            <div className="flex items-center justify-center gap-3">
+              <Package className="w-6 h-6 text-white/40" />
+              <span className="text-xl font-display font-bold text-white/40">Kazana</span>
             </div>
-          </form>
-        </CardContent>
-      </Card>
+          </div>
+        </div>
+      </div>
 
       <Dialog open={showForgotInfo} onOpenChange={setShowForgotInfo}>
-        <DialogContent className="sm:max-w-[400px]">
+        <DialogContent className="sm:max-w-[400px] bg-[#002D70] text-white border-white/20">
           <DialogHeader>
             <DialogTitle>Lupa Password?</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
-            <div className="flex gap-3 p-4 rounded-lg bg-muted/50 border border-border/50">
-              <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <p>Hubungi <strong className="text-foreground">Admin</strong> tim Anda untuk mereset password.</p>
-                <p>Admin dapat mereset password Anda melalui halaman <strong className="text-foreground">User Roles</strong>.</p>
+            <div className="flex gap-3 p-4 rounded-lg bg-white/5 border border-white/10">
+              <Info className="w-5 h-5 text-blue-300 shrink-0 mt-0.5" />
+              <div className="space-y-2 text-sm text-blue-200/80">
+                <p>Hubungi <strong className="text-white font-bold">Admin</strong> tim Anda untuk mereset password.</p>
+                <p>Admin dapat mereset password Anda melalui halaman <strong className="text-white font-bold">User Roles</strong>.</p>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground text-center">
-              Jika Anda adalah admin dan lupa password, silakan hubungi administrator sistem.
-            </p>
             <div className="flex justify-end">
-              <Button variant="outline" onClick={() => setShowForgotInfo(false)} data-testid="button-close-forgot">
+              <Button variant="outline" className="text-white border-white/20 hover:bg-white/10" onClick={() => setShowForgotInfo(false)} data-testid="button-close-forgot">
                 Tutup
               </Button>
             </div>
