@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { cn, compressImage } from "@/lib/utils";
@@ -179,7 +180,51 @@ export default function SessionDetail() {
     window.print();
   };
 
-  if (isLoading) return <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-enter pb-12">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Skeleton className="w-10 h-10 rounded-md" />
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-64" />
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+            </div>
+          </div>
+          <Skeleton className="h-20 w-48 rounded-2xl" />
+        </div>
+
+        <div className="flex flex-col md:flex-row gap-3">
+          <Skeleton className="h-10 w-full md:max-w-md rounded-md" />
+          <Skeleton className="h-10 w-40 rounded-md" />
+          <Skeleton className="h-10 w-32 rounded-md" />
+        </div>
+
+        <div className="bg-card border border-border/50 rounded-2xl shadow-sm overflow-hidden">
+          <div className="bg-muted/30 border-b border-border/50 p-4 flex gap-4">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 flex-1" />
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="p-4 border-b border-border/50 flex items-center gap-4">
+              <Skeleton className="h-4 w-24" />
+              <div className="flex-1 flex gap-3 items-center">
+                <Skeleton className="w-8 h-8 rounded-md" />
+                <Skeleton className="h-4 w-40" />
+              </div>
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-8 w-24 rounded-md" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
   if (error) {
     const errorMsg = error instanceof Error ? error.message : "Unknown error";
     return (
@@ -379,7 +424,7 @@ export default function SessionDetail() {
 
       <div className="bg-card border border-border/50 rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="bg-muted/30 border-b border-border/50">
               <tr>
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[15%]">{isGudangSession ? "Kode Produk" : "SKU"}</th>
