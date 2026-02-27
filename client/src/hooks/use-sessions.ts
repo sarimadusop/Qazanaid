@@ -48,7 +48,10 @@ export function useCreateSession() {
         credentials: "include",
       });
 
-      if (!res.ok) throw new Error("Failed to start session");
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to start session");
+      }
       return res.json();
     },
     onSuccess: () => {

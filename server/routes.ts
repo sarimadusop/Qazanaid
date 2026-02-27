@@ -76,7 +76,7 @@ export async function registerRoutes(
     try {
       const client = await pool.connect();
       const dbRes = await client.query("SELECT NOW()");
-      
+
       // Check tables
       const tablesRes = await client.query(`
         SELECT table_name 
@@ -84,7 +84,7 @@ export async function registerRoutes(
         WHERE table_schema = 'public'
       `);
       const tableNames = tablesRes.rows.map(r => r.table_name);
-      
+
       let userCount = -1;
       let opnameCols: string[] = [];
       if (tableNames.includes("users")) {
@@ -646,7 +646,8 @@ export async function registerRoutes(
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
-      throw err;
+      console.error("Create session error:", err);
+      res.status(500).json({ message: (err as Error).message || "Gagal membuat sesi" });
     }
   });
 
