@@ -77,6 +77,35 @@ export async function registerRoutes(
     res.json(roleRecord);
   });
 
+  // Diagnostic route
+  app.get("/api/diag/db", async (req, res) => {
+    const { pool } = await import("./db");
+    try {
+      const client = await pool.connect();
+      const dbRes = await client.query("SELECT NOW()");
+      client.release();
+      res.json({
+        status: "ok",
+        time: dbRes.rows[0].now,
+        env: {
+          hasSupabase: !!process.env.SUPABASE_DATABASE_URL,
+          hasLocal: !!process.env.DATABASE_URL,
+        }
+      });
+    } catch (err: any) {
+      console.error("Diagnostic error:", err);
+      res.status(500).json({
+        status: "error",
+        message: err.message,
+        code: err.code,
+        env: {
+          hasSupabase: !!process.env.SUPABASE_DATABASE_URL,
+          hasLocal: !!process.env.DATABASE_URL,
+        }
+      });
+    }
+  });
+
   app.get(api.roles.list.path, isAuthenticated, requireRole("admin"), async (req, res) => {
     const adminId = getUserId(req);
     const roles = await storage.getAllUserRoles();
