@@ -113,7 +113,7 @@ export function BatchPhotoUpload({ open, onOpenChange, onUpload, title = "Ambil 
 
     canvas.toBlob((blob) => {
       if (!blob || !mountedRef.current) return;
-      const id = crypto.randomUUID();
+      const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
       const previewUrl = URL.createObjectURL(blob);
       setPhotos(prev => [...prev, { id, blob, previewUrl }]);
     }, "image/jpeg", 0.85);
@@ -139,7 +139,7 @@ export function BatchPhotoUpload({ open, onOpenChange, onUpload, title = "Ambil 
     const files = e.target.files;
     if (!files) return;
     Array.from(files).forEach(file => {
-      const id = crypto.randomUUID();
+      const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
       const previewUrl = URL.createObjectURL(file);
       setPhotos(prev => [...prev, { id, blob: file, previewUrl }]);
     });

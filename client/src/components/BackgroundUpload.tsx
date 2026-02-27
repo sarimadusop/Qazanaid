@@ -18,7 +18,7 @@ interface BackgroundUploadContextType {
 }
 
 const BackgroundUploadContext = createContext<BackgroundUploadContextType>({
-  addUploadJob: () => {},
+  addUploadJob: () => { },
   activeCount: 0,
 });
 
@@ -80,7 +80,7 @@ export function BackgroundUploadProvider({ children }: { children: React.ReactNo
 
   const addUploadJob = useCallback((label: string, files: File[], uploadFn: SingleFileUploadFn) => {
     const job: UploadJob = {
-      id: crypto.randomUUID(),
+      id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36),
       label,
       total: files.length,
       status: "pending",
