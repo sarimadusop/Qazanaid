@@ -1,14 +1,15 @@
 import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import connectPg from "connect-pg-simple";
+import { pool } from "../db";
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000;
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
-    conString: process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL,
+    pool: pool, // Use the shared pool
     createTableIfMissing: true,
-    ttl: sessionTtl,
+    ttl: sessionTtl / 1000,
     tableName: "sessions",
   });
   return session({
@@ -18,7 +19,7 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
       maxAge: sessionTtl,
     },
   });
