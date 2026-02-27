@@ -19,6 +19,10 @@ WORKDIR /app
 # Copy built files and production dependencies
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/drizzle.config.ts ./
+COPY --from=builder /app/shared ./shared
+COPY --from=builder /app/server ./server
+
 # Only install production dependencies to keep image small
 RUN npm install --omit=dev
 
