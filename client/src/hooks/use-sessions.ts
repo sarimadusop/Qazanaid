@@ -25,7 +25,10 @@ export function useSession(id: number) {
     queryFn: async () => {
       const url = buildUrl(api.sessions.get.path, { id });
       const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch session details");
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to fetch session details");
+      }
       return res.json();
     },
     enabled: !!id,
