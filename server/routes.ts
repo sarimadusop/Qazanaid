@@ -71,16 +71,36 @@ export async function registerRoutes(
   console.log("[server] Registering diagnostic route: /api/diag/db");
   app.get("/api/diag/db", async (req, res) => {
     const { pool } = await import("./db");
+    const { users } = await import("@shared/models/auth");
+    const { userRoles } = await import("@shared/schema");
     try {
       const client = await pool.connect();
       const dbRes = await client.query("SELECT NOW()");
+      
+      // Check tables
+      const tablesRes = await client.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public'
+      `);
+      const tableNames = tablesRes.rows.map(r => r.table_name);
+      
+      let userCount = -1;
+      if (tableNames.includes("users")) {
+        const countRes = await client.query("SELECT COUNT(*) FROM users");
+        userCount = parseInt(countRes.rows[0].count);
+      }
+
       client.release();
       res.json({
         status: "ok",
         time: dbRes.rows[0].now,
+        tables: tableNames,
+        userCount,
         env: {
           hasSupabase: !!process.env.SUPABASE_DATABASE_URL,
           hasLocal: !!process.env.DATABASE_URL,
+          nodeEnv: process.env.NODE_ENV,
         }
       });
     } catch (err: any) {
@@ -89,10 +109,7 @@ export async function registerRoutes(
         status: "error",
         message: err.message,
         code: err.code,
-        env: {
-          hasSupabase: !!process.env.SUPABASE_DATABASE_URL,
-          hasLocal: !!process.env.DATABASE_URL,
-        }
+        stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
       });
     }
   });
