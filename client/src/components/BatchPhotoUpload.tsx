@@ -335,7 +335,6 @@ export function BatchPhotoUpload({ open, onOpenChange, onUpload, title = "Ambil 
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          capture="environment"
           multiple
           className="hidden"
           onChange={handleGallerySelect}

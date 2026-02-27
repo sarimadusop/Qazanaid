@@ -291,19 +291,19 @@ export default function SessionDetail() {
           </div>
         </div>
 
-        <div className="flex flex-col items-start lg:items-end gap-3 shrink-0">
-          <div className="flex items-center gap-3 p-2 px-4 bg-primary/5 rounded-2xl border border-primary/10 shadow-sm transition-all hover:border-primary/20 group">
+        <div className="flex flex-col gap-3 w-full lg:w-auto lg:items-end shrink-0">
+          <div className="flex items-center gap-3 p-2 px-4 bg-primary/5 rounded-2xl border border-primary/10 shadow-sm transition-all hover:border-primary/20 group w-full lg:w-auto">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors duration-300">
                 <User className="w-4 h-4" />
               </div>
-              <div className="hidden sm:block">
+              <div>
                 <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest leading-tight">Petugas</p>
                 <p className="text-xs font-bold text-primary leading-tight">Aktif</p>
               </div>
             </div>
             <Select value={currentCounter} onValueChange={setCurrentCounter} disabled={isCompleted || !canCount}>
-              <SelectTrigger className="h-9 min-w-[140px] bg-transparent border-none shadow-none focus:ring-0 px-1 font-medium text-foreground">
+              <SelectTrigger className="h-9 flex-1 min-w-[100px] bg-transparent border-none shadow-none focus:ring-0 px-1 font-medium text-foreground">
                 <SelectValue placeholder="Pilih petugas..." />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-primary/10 shadow-xl">
@@ -1584,9 +1584,8 @@ const MobileRecordCard = memo(({ record, sessionId, readOnly, isCompleted, isGud
               onClick={() => {
                 const input = document.createElement("input");
                 input.type = "file";
-                input.multiple = true;
                 input.accept = "image/*";
-                input.capture = "environment";
+                input.setAttribute("capture", "environment");
                 input.onchange = (e) => {
                   const files = Array.from((e.target as HTMLInputElement).files || []);
                   if (files.length > 0) {
