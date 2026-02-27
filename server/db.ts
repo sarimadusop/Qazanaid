@@ -14,6 +14,9 @@ function maskUrl(url: string) {
   }
 }
 
+const supabaseUrl = process.env.SUPABASE_DATABASE_URL;
+const localUrl = process.env.DATABASE_URL;
+
 // On VPS, we prioritize localUrl (DATABASE_URL) to ensure we use the local Postgres.
 // supabaseUrl is only used as a fallback.
 let databaseUrl = localUrl || supabaseUrl;
