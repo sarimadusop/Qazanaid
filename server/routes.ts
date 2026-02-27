@@ -67,17 +67,8 @@ export async function registerRoutes(
   await setupAuth(app);
   registerAuthRoutes(app);
 
-  // === Roles ===
-  app.get(api.roles.me.path, isAuthenticated, async (req, res) => {
-    const userId = getUserId(req);
-    let roleRecord = await storage.getUserRole(userId);
-    if (!roleRecord) {
-      roleRecord = await storage.setUserRole({ userId, role: "stock_counter" });
-    }
-    res.json(roleRecord);
-  });
-
-  // Diagnostic route
+  // === Diagnostic ===
+  console.log("[server] Registering diagnostic route: /api/diag/db");
   app.get("/api/diag/db", async (req, res) => {
     const { pool } = await import("./db");
     try {
@@ -104,6 +95,16 @@ export async function registerRoutes(
         }
       });
     }
+  });
+
+  // === Roles ===
+  app.get(api.roles.me.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    let roleRecord = await storage.getUserRole(userId);
+    if (!roleRecord) {
+      roleRecord = await storage.setUserRole({ userId, role: "stock_counter" });
+    }
+    res.json(roleRecord);
   });
 
   app.get(api.roles.list.path, isAuthenticated, requireRole("admin"), async (req, res) => {
