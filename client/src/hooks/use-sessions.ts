@@ -82,12 +82,12 @@ export function useUpdateRecord() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async ({ sessionId, productId, actualStock, notes, unitValues, countedBy }: { sessionId: number; productId: number; actualStock: number; notes?: string; unitValues?: string; countedBy?: string }) => {
+    mutationFn: async ({ sessionId, productId, actualStock, notes, unitValues, countedBy, returnedQuantity, returnedNotes }: { sessionId: number; productId: number; actualStock: number; notes?: string; unitValues?: string; countedBy?: string; returnedQuantity?: number; returnedNotes?: string }) => {
       const url = buildUrl(api.records.update.path, { sessionId });
       const res = await fetch(url, {
         method: api.records.update.method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, actualStock, notes, unitValues, countedBy }),
+        body: JSON.stringify({ productId, actualStock, notes, unitValues, countedBy, returnedQuantity, returnedNotes }),
         credentials: "include",
       });
 

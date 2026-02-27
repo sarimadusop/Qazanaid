@@ -41,7 +41,7 @@ export default function SessionDetail() {
   const { id } = useParams();
   const sessionId = parseInt(id!);
   const [, setLocation] = useLocation();
-  const { data: session, isLoading } = useSession(sessionId);
+  const { data: session, isLoading, error } = useSession(sessionId);
   const { data: categories } = useCategories();
   const { canCount } = useRole();
   const completeSession = useCompleteSession();
@@ -180,7 +180,29 @@ export default function SessionDetail() {
   };
 
   if (isLoading) return <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
-  if (!session) return <div className="p-12 text-center">Session not found</div>;
+  if (error) {
+    const errorMsg = error instanceof Error ? error.message : "Unknown error";
+    return (
+      <div className="p-12 max-w-2xl mx-auto mt-8">
+        <div className="bg-red-50/50 border border-red-200 rounded-2xl p-8 text-center space-y-4 shadow-sm">
+          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto" />
+          <h3 className="text-xl font-display font-bold text-red-700">Gagal Memuat Sesi</h3>
+          <p className="text-red-600/80 leading-relaxed font-medium">Message: {errorMsg}</p>
+          <div className="pt-4 flex justify-center gap-3">
+            <Button variant="outline" onClick={() => setLocation("/sessions")} className="border-red-200 text-red-700 hover:bg-red-50">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Kembali
+            </Button>
+            <Button onClick={() => window.location.reload()} className="bg-red-600 hover:bg-red-700 text-white">
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Coba Lagi
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (!session) return <div className="p-12 text-center text-muted-foreground">Session not found</div>;
 
   return (
     <div className="space-y-6 animate-enter pb-12">
