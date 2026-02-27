@@ -86,9 +86,18 @@ export async function registerRoutes(
       const tableNames = tablesRes.rows.map(r => r.table_name);
       
       let userCount = -1;
+      let opnameCols: string[] = [];
       if (tableNames.includes("users")) {
         const countRes = await client.query("SELECT COUNT(*) FROM users");
         userCount = parseInt(countRes.rows[0].count);
+      }
+      if (tableNames.includes("opname_records")) {
+        const colsRes = await client.query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'opname_records'
+        `);
+        opnameCols = colsRes.rows.map(r => r.column_name);
       }
 
       client.release();
@@ -96,6 +105,7 @@ export async function registerRoutes(
         status: "ok",
         time: dbRes.rows[0].now,
         tables: tableNames,
+        opnameColumns: opnameCols,
         userCount,
         env: {
           hasSupabase: !!process.env.SUPABASE_DATABASE_URL,
