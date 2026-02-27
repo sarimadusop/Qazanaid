@@ -14,14 +14,9 @@ function maskUrl(url: string) {
   }
 }
 
-const supabaseUrl = process.env.SUPABASE_DATABASE_URL;
-const localUrl = process.env.DATABASE_URL;
-
-// On VPS, we usually want DATABASE_URL (Local). 
-// However, if SUPABASE_DATABASE_URL is provided, we check if it's reachable.
-// For now, let's prioritize localUrl if we are in production-like environment with a local DB,
-// or provide a clear log of what's chosen.
-let databaseUrl = supabaseUrl || localUrl;
+// On VPS, we prioritize localUrl (DATABASE_URL) to ensure we use the local Postgres.
+// supabaseUrl is only used as a fallback.
+let databaseUrl = localUrl || supabaseUrl;
 
 if (!databaseUrl) {
   throw new Error("SUPABASE_DATABASE_URL or DATABASE_URL must be set.");
