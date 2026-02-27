@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Package, ClipboardList, LayoutDashboard, Menu, X, Box, Shield, LogOut, UserCog, Users, Megaphone, MessageSquare, Heart } from "lucide-react";
+import { Package, ClipboardList, LayoutDashboard, Menu, X, Box, Shield, LogOut, UserCog, Users, Megaphone, MessageSquare, Heart, Store, Warehouse } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -18,7 +18,10 @@ export function Sidebar() {
 
   const navigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
-    ...(!isStockCounterOnly ? [{ name: "Products / SKU", href: "/products", icon: Box }] : []),
+    ...(!isStockCounterOnly ? [
+      { name: "SKU Toko", href: "/products?type=toko", icon: Store },
+      { name: "SKU Gudang", href: "/products?type=gudang", icon: Warehouse }
+    ] : []),
     { name: "Opname Sessions", href: "/sessions", icon: ClipboardList },
     ...(isAdmin ? [{ name: "User Roles", href: "/roles", icon: Shield }] : []),
     ...(isAdmin || isSKUManager ? [{ name: "Staff SO", href: "/staff", icon: Users }] : []),
@@ -80,7 +83,8 @@ export function Sidebar() {
 
           <nav className="flex-1 px-4 py-4 space-y-1.5 mt-14 lg:mt-0 z-10">
             {navigation.map((item) => {
-              const isActive = location === item.href;
+              const currentFullUrl = location + window.location.search;
+              const isActive = currentFullUrl === item.href || (location === "/products" && item.href.startsWith("/products") && currentFullUrl === item.href);
               return (
                 <Link key={item.name} href={item.href}>
                   <div

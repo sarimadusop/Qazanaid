@@ -58,9 +58,22 @@ function getDefaultProductTab(role: string): string {
 
 export default function Products() {
   const { canManageSku, isAdmin, canCountToko, canCountGudang, role } = useRole();
-  const defaultTab = getDefaultProductTab(role);
+  const searchParams = new URLSearchParams(window.location.search);
+  const forcedType = searchParams.get("type");
+
+  const defaultTab = forcedType || getDefaultProductTab(role);
   const [locationType, setLocationType] = useState<string>(defaultTab);
-  const queryLocationType = locationType === "semua" ? undefined : locationType;
+
+  // Sync state if URL changes (for navigation)
+  useEffect(() => {
+    if (forcedType && forcedType !== locationType) {
+      setLocationType(forcedType);
+      // Invalidate products to refresh data for the new type
+      queryClient.invalidateQueries({ queryKey: [api.products.list.path] });
+    }
+  }, [forcedType]);
+
+  const queryLocationType = locationType === "semua" ? undefined : (locationType as any);
   const { data: products, isLoading: isInitialLoading } = useProducts(queryLocationType);
   const [deferredLoading, setDeferredLoading] = useState(true);
 
@@ -159,8 +172,10 @@ export default function Products() {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-display font-bold text-foreground">Produk</h1>
-            <p className="text-muted-foreground mt-1">Kelola katalog inventaris dan stok.</p>
+            <h1 className="text-3xl font-display font-bold text-foreground">
+              {locationType === "toko" ? "SKU Toko" : locationType === "gudang" ? "SKU Gudang" : "Semua SKU Produk"}
+            </h1>
+            <p className="text-muted-foreground mt-1">Kelola data master produk dan ketersediaan stok.</p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             {canManageSku && selectedIds.length > 0 && (
@@ -327,28 +342,30 @@ export default function Products() {
         </div>
 
         <div className="flex flex-col md:flex-row md:items-center gap-3">
-          <Tabs value={locationType} onValueChange={setLocationType} data-testid="tabs-location-type">
-            <TabsList>
-              {showAllTabs && (
-                <TabsTrigger value="semua" data-testid="tab-semua">
-                  <Package className="w-4 h-4 mr-1.5" />
-                  Semua
-                </TabsTrigger>
-              )}
-              {canCountToko && (
-                <TabsTrigger value="toko" data-testid="tab-toko">
-                  <Store className="w-4 h-4 mr-1.5" />
-                  Toko
-                </TabsTrigger>
-              )}
-              {canCountGudang && (
-                <TabsTrigger value="gudang" data-testid="tab-gudang">
-                  <Warehouse className="w-4 h-4 mr-1.5" />
-                  Gudang
-                </TabsTrigger>
-              )}
-            </TabsList>
-          </Tabs>
+          {!forcedType && (
+            <Tabs value={locationType} onValueChange={setLocationType} data-testid="tabs-location-type">
+              <TabsList>
+                {showAllTabs && (
+                  <TabsTrigger value="semua" data-testid="tab-semua">
+                    <Package className="w-4 h-4 mr-1.5" />
+                    Semua
+                  </TabsTrigger>
+                )}
+                {canCountToko && (
+                  <TabsTrigger value="toko" data-testid="tab-toko">
+                    <Store className="w-4 h-4 mr-1.5" />
+                    Toko
+                  </TabsTrigger>
+                )}
+                {canCountGudang && (
+                  <TabsTrigger value="gudang" data-testid="tab-gudang">
+                    <Warehouse className="w-4 h-4 mr-1.5" />
+                    Gudang
+                  </TabsTrigger>
+                )}
+              </TabsList>
+            </Tabs>
+          )}
 
           <div className="flex items-center gap-3 flex-wrap flex-1">
             <div className="relative flex-1 min-w-[200px] max-w-xs">
