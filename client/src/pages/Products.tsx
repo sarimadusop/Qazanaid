@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, memo } from "react";
 import {
   useProducts,
   useCreateProduct,
@@ -109,7 +109,13 @@ export default function Products() {
   const bulkDelete = useBulkDeleteProducts();
   const bulkResetStock = useBulkResetStock();
   const [bulkResetOpen, setBulkResetOpen] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(20);
   const excelInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset pagination when search/filter changes
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [locationType, categoryFilter, search]);
   const gudangImportRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -594,7 +600,7 @@ export default function Products() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
-                  {filteredProducts?.map((product) =>
+                  {filteredProducts?.slice(0, visibleCount).map((product) =>
                     editingId === product.id ? (
                       <EditProductRow
                         key={product.id}
@@ -624,7 +630,7 @@ export default function Products() {
             </div>
 
             <div className="md:hidden grid grid-cols-1 gap-4 p-4">
-              {filteredProducts?.map((p) =>
+              {filteredProducts?.slice(0, visibleCount).map((p) =>
                 editingId === p.id ? (
                   <MobileEditProductCard
                     key={p.id}
@@ -650,6 +656,18 @@ export default function Products() {
                 )
               )}
             </div>
+
+            {filteredProducts && filteredProducts.length > visibleCount && (
+              <div className="p-4 border-t border-border/50 flex justify-center">
+                <Button
+                  variant="outline"
+                  onClick={() => setVisibleCount(prev => prev + 50)}
+                  className="w-full md:w-auto rounded-xl h-11 border-primary/20 hover:bg-primary/5 text-primary font-bold"
+                >
+                  Tampilkan Lebih Banyak ({filteredProducts.length - visibleCount} lagi)
+                </Button>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -657,7 +675,7 @@ export default function Products() {
   );
 }
 
-function ProductRow({
+const ProductRow = memo(({
   product,
   canManageSku,
   selected,
@@ -673,7 +691,7 @@ function ProductRow({
   onEdit: () => void;
   onPhotos: () => void;
   onUnits: () => void;
-}) {
+}) => {
   const { data: photos } = useProductPhotos(product.id);
   const { data: units } = useProductUnits(product.id);
   const photoCount = photos?.length ?? 0;
@@ -798,7 +816,7 @@ function ProductRow({
       )}
     </tr>
   );
-}
+});
 
 function formatUnitDisplay(units: ProductUnit[]): string {
   if (!units || units.length === 0) return "";
@@ -1621,38 +1639,8 @@ function CategoryPriorityDialog({ open, onOpenChange, categories }: {
   );
 }
 
-function DeleteProductButton({ id, name }: { id: number; name: string }) {
-  const deleteProduct = useDeleteProduct();
 
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="text-muted-foreground" data-testid={`button-delete-product-${id}`}>
-          <Trash2 className="w-4 h-4" />
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Hapus Produk?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Apakah Anda yakin ingin menghapus <strong>{name}</strong>? Tindakan ini tidak dapat dibatalkan.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Batal</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-destructive"
-            onClick={() => deleteProduct.mutate(id)}
-            data-testid="button-confirm-delete"
-          >
-            Hapus
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
-function MobileProductCard({
+const MobileProductCard = memo(({
   product,
   canManageSku,
   selected,
@@ -1668,7 +1656,7 @@ function MobileProductCard({
   onEdit: () => void;
   onPhotos: () => void;
   onUnits: () => void;
-}) {
+}) => {
   const { data: photos } = useProductPhotos(product.id);
   const firstPhoto = photos?.[0];
 
@@ -1740,7 +1728,7 @@ function MobileProductCard({
       </div>
     </div>
   );
-}
+});
 
 function DeleteProductButton({ id, name }: { id: number; name: string }) {
   const deleteProduct = useDeleteProduct();

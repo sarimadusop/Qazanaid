@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/StatusBadge";
-import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect, memo } from "react";
 import { cn, compressImage } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { useToast } from "@/hooks/use-toast";
@@ -60,6 +60,12 @@ export default function SessionDetail() {
     if (!session?.assignedTo) return [];
     return session.assignedTo.split(", ").map(s => s.trim());
   }, [session?.assignedTo]);
+
+  const [visibleCount, setVisibleCount] = useState(20);
+
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [search, categoryFilter]);
 
   useEffect(() => {
     if (staffNames.length > 0 && !currentCounter) {
@@ -442,7 +448,7 @@ export default function SessionDetail() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
-              {records.map((record) => (
+              {records.slice(0, visibleCount).map((record) => (
                 <RecordRow
                   key={record.id}
                   record={record}
@@ -459,7 +465,7 @@ export default function SessionDetail() {
 
       {/* Mobile Records View */}
       <div className="grid grid-cols-1 gap-4 md:hidden">
-        {records.map((record) => (
+        {records.slice(0, visibleCount).map((record) => (
           <MobileRecordCard
             key={record.id}
             record={record}
@@ -470,6 +476,18 @@ export default function SessionDetail() {
           />
         ))}
       </div>
+
+      {records.length > visibleCount && (
+        <div className="flex justify-center mt-6">
+          <Button
+            variant="outline"
+            onClick={() => setVisibleCount(prev => prev + 50)}
+            className="w-full md:w-auto rounded-xl h-12 border-primary/20 hover:bg-primary/5 text-primary font-bold shadow-sm"
+          >
+            Tampilkan Lebih Banyak ({records.length - visibleCount} lagi)
+          </Button>
+        </div>
+      )}
 
       <Dialog open={completionDialogOpen} onOpenChange={setCompletionDialogOpen}>
         <DialogContent className="max-w-md">
@@ -941,7 +959,7 @@ function PhotoLightbox({ open, onOpenChange, photos, initialIndex, title, produc
   );
 }
 
-function RecordRow({ record, sessionId, readOnly, isGudang, currentCounter }: { record: OpnameRecordWithProduct; sessionId: number; readOnly: boolean; isGudang: boolean; currentCounter: string }) {
+const RecordRow = memo(({ record, sessionId, readOnly, isGudang, currentCounter }: { record: OpnameRecordWithProduct; sessionId: number; readOnly: boolean; isGudang: boolean; currentCounter: string }) => {
   const updateRecord = useUpdateRecord();
   const uploadPhoto = useUploadRecordPhoto();
   const deletePhoto = useDeleteRecordPhoto();
@@ -1285,7 +1303,7 @@ function RecordRow({ record, sessionId, readOnly, isGudang, currentCounter }: { 
       />
     </>
   );
-}
+});
 
 function SessionCategoryPriorityDialog({ open, onOpenChange, categories }: {
   open: boolean;
@@ -1385,7 +1403,7 @@ function SessionCategoryPriorityDialog({ open, onOpenChange, categories }: {
   );
 }
 
-function MobileRecordCard({ record, sessionId, readOnly, isGudang, currentCounter }: { record: OpnameRecordWithProduct; sessionId: number; readOnly: boolean; isGudang: boolean; currentCounter: string }) {
+const MobileRecordCard = memo(({ record, sessionId, readOnly, isGudang, currentCounter }: { record: OpnameRecordWithProduct; sessionId: number; readOnly: boolean; isGudang: boolean; currentCounter: string }) => {
   const updateRecord = useUpdateRecord();
   const uploadPhoto = useUploadRecordPhoto();
   const deletePhoto = useDeleteRecordPhoto();
@@ -1592,86 +1610,6 @@ function MobileRecordCard({ record, sessionId, readOnly, isGudang, currentCounte
       />
     </div>
   );
-}
+});
 
-function PhotoLightbox({ open, onOpenChange, photos, initialIndex, title, productId }: { open: boolean; onOpenChange: (open: boolean) => void; photos: string[]; initialIndex: number; title: string; productId: number }) {
-  const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  const [scale, setScale] = useState(1);
-  const [translate, setTranslate] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const startPos = useRef({ x: 0, y: 0 });
-  const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (open) {
-      setCurrentIndex(initialIndex);
-      setScale(1);
-      setTranslate({ x: 0, y: 0 });
-    }
-  }, [open, initialIndex]);
-
-  const goNext = useCallback(() => {
-    setCurrentIndex(prev => (prev + 1) % photos.length);
-    setScale(1);
-    setTranslate({ x: 0, y: 0 });
-  }, [photos.length]);
-
-  const goPrev = useCallback(() => {
-    setCurrentIndex(prev => (prev - 1 + photos.length) % photos.length);
-    setScale(1);
-    setTranslate({ x: 0, y: 0 });
-  }, [photos.length]);
-
-  const zoomIn = () => setScale(prev => Math.min(prev + 0.5, 5));
-  const zoomOut = () => {
-    setScale(prev => {
-      const next = Math.max(prev - 0.5, 1);
-      if (next === 1) setTranslate({ x: 0, y: 0 });
-      return next;
-    });
-  };
-  const resetZoom = () => { setScale(1); setTranslate({ x: 0, y: 0 }); };
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (scale <= 1) return;
-    setIsDragging(true);
-    startPos.current = { x: e.clientX - translate.x, y: e.clientY - translate.y };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDragging) return;
-    setTranslate({ x: e.clientX - startPos.current.x, y: e.clientY - startPos.current.y });
-  };
-
-  const handlePointerUp = () => setIsDragging(false);
-
-  if (photos.length === 0) return null;
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] h-[80vh] max-w-[95vw] p-0 flex flex-col gap-0 border-none bg-black/95">
-        <DialogHeader className="p-4 flex-shrink-0 text-white">
-          <DialogTitle className="text-sm font-medium">{title} ({currentIndex + 1}/{photos.length})</DialogTitle>
-        </DialogHeader>
-        <div className="flex-1 relative overflow-hidden flex items-center justify-center">
-          <button onClick={goPrev} className="absolute left-4 z-10 p-2 bg-white/10 rounded-full text-white hover:bg-white/20"><ChevronLeft /></button>
-          <img
-            src={photos[currentIndex]}
-            className="max-h-full max-w-full object-contain transition-transform"
-            style={{ transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})` }}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-          />
-          <button onClick={goNext} className="absolute right-4 z-10 p-2 bg-white/10 rounded-full text-white hover:bg-white/20"><ChevronRight /></button>
-        </div>
-        <div className="p-4 flex justify-center gap-4">
-          <Button variant="outline" size="icon" className="bg-white/10 border-none text-white hover:bg-white/20" onClick={zoomOut}><ZoomOut /></Button>
-          <Button variant="outline" size="icon" className="bg-white/10 border-none text-white hover:bg-white/20" onClick={zoomIn}><ZoomIn /></Button>
-          <Button variant="outline" className="bg-white/10 border-none text-white hover:bg-white/20" onClick={resetZoom}>Reset</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
