@@ -422,47 +422,51 @@ export default function Products() {
         </div>
 
         <div className="flex flex-col lg:flex-row lg:items-center gap-4 border-t border-border/10 pt-6">
-          <div className="bg-white/50 p-1 rounded-2xl border border-border/50 shadow-inner flex items-center min-w-[300px]">
-            <button
-              onClick={() => setLocationType("toko")}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300",
-                locationType === "toko"
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-200 scale-[1.02]"
-                  : "text-muted-foreground hover:bg-blue-50/50"
-              )}
-              data-testid="button-mode-toko"
-            >
-              <Store className="w-4 h-4 font-bold" />
-              Mode Toko
-            </button>
-            <button
-              onClick={() => setLocationType("gudang")}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300",
-                locationType === "gudang"
-                  ? "bg-amber-600 text-white shadow-lg shadow-amber-200 scale-[1.02]"
-                  : "text-muted-foreground hover:bg-amber-50/50"
-              )}
-              data-testid="button-mode-gudang"
-            >
-              <Warehouse className="w-4 h-4 font-bold" />
-              Mode Gudang
-            </button>
-            {showAllTabs && (
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="bg-muted/50 p-1 rounded-2xl border border-border/50 shadow-inner flex items-center">
               <button
+                onClick={() => setLocationType("toko")}
+                className={cn(
+                  "flex items-center justify-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all duration-300",
+                  locationType === "toko"
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-200 scale-[1.05]"
+                    : "text-muted-foreground hover:bg-white/50"
+                )}
+                data-testid="button-mode-toko"
+              >
+                <Store className="w-4 h-4" />
+                <span>Toko</span>
+              </button>
+              <button
+                onClick={() => setLocationType("gudang")}
+                className={cn(
+                  "flex items-center justify-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all duration-300",
+                  locationType === "gudang"
+                    ? "bg-amber-600 text-white shadow-lg shadow-amber-200 scale-[1.05]"
+                    : "text-muted-foreground hover:bg-white/50"
+                )}
+                data-testid="button-mode-gudang"
+              >
+                <Warehouse className="w-4 h-4" />
+                <span>Gudang</span>
+              </button>
+            </div>
+
+            {showAllTabs && (
+              <Button
+                variant={locationType === "semua" ? "default" : "outline"}
                 onClick={() => setLocationType("semua")}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300",
+                  "rounded-2xl font-bold h-10 px-6 transition-all duration-300",
                   locationType === "semua"
-                    ? "bg-slate-800 text-white shadow-lg shadow-slate-200 scale-[1.02]"
-                    : "text-muted-foreground hover:bg-slate-50"
+                    ? "bg-slate-800 text-white shadow-lg shadow-slate-200"
+                    : "border-slate-200 text-slate-600 hover:bg-slate-50"
                 )}
                 data-testid="button-mode-semua"
               >
-                <Package className="w-4 h-4 font-bold" />
-                Semua
-              </button>
+                <Package className="w-4 h-4 mr-2" />
+                Tampilkan Semua
+              </Button>
             )}
           </div>
 
@@ -553,68 +557,100 @@ export default function Products() {
             <p className="text-muted-foreground mt-1">Coba ubah pencarian atau tambah produk baru.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="bg-muted/30 border-b border-border/50">
-                  {canManageSku && (
-                    <th className="px-4 py-3 w-10">
-                      <input
-                        type="checkbox"
-                        checked={filteredProducts ? filteredProducts.length > 0 && selectedIds.length === filteredProducts.length : false}
-                        onChange={() => {
-                          if (!filteredProducts) return;
-                          if (selectedIds.length === filteredProducts.length) {
-                            setSelectedIds([]);
-                          } else {
-                            setSelectedIds(filteredProducts.map(p => p.id));
-                          }
-                        }}
-                        className="rounded"
-                        data-testid="checkbox-select-all"
+          <>
+            <div className="overflow-x-auto hidden md:block">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="bg-muted/30 border-b border-border/50">
+                    {canManageSku && (
+                      <th className="px-4 py-3 w-10 text-center">
+                        <div className="flex justify-center">
+                          <input
+                            type="checkbox"
+                            checked={filteredProducts ? filteredProducts.length > 0 && selectedIds.length === filteredProducts.length : false}
+                            onChange={() => {
+                              if (!filteredProducts) return;
+                              if (selectedIds.length === filteredProducts.length) {
+                                setSelectedIds([]);
+                              } else {
+                                setSelectedIds(filteredProducts.map(p => p.id));
+                              }
+                            }}
+                            className="rounded"
+                            data-testid="checkbox-select-all"
+                          />
+                        </div>
+                      </th>
+                    )}
+                    <th className="px-4 py-3 font-medium text-muted-foreground w-16">Foto</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground w-32">SKU</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground">Nama Produk</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground w-32">Kategori</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground w-28">Lokasi</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground text-right w-24">Stok</th>
+                    {canManageSku && (
+                      <th className="px-4 py-3 font-medium text-muted-foreground text-right w-36">Aksi</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {filteredProducts?.map((product) =>
+                    editingId === product.id ? (
+                      <EditProductRow
+                        key={product.id}
+                        product={product}
+                        onCancel={() => setEditingId(null)}
+                        onSaved={() => setEditingId(null)}
                       />
-                    </th>
+                    ) : (
+                      <ProductRow
+                        key={product.id}
+                        product={product}
+                        canManageSku={canManageSku}
+                        selected={selectedIds.includes(product.id)}
+                        onToggleSelect={() => {
+                          setSelectedIds(prev =>
+                            prev.includes(product.id) ? prev.filter(id => id !== product.id) : [...prev, product.id]
+                          );
+                        }}
+                        onEdit={() => setEditingId(product.id)}
+                        onPhotos={() => setPhotosProductId(product.id)}
+                        onUnits={() => setUnitsProductId(product.id)}
+                      />
+                    )
                   )}
-                  <th className="px-4 py-3 font-medium text-muted-foreground">Foto</th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">SKU</th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">Nama Produk</th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">Kategori</th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground">Lokasi</th>
-                  <th className="px-4 py-3 font-medium text-muted-foreground text-right">Stok</th>
-                  {canManageSku && (
-                    <th className="px-4 py-3 font-medium text-muted-foreground text-right">Aksi</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/50">
-                {filteredProducts?.map((product) =>
-                  editingId === product.id ? (
-                    <EditProductRow
-                      key={product.id}
-                      product={product}
-                      onCancel={() => setEditingId(null)}
-                      onSaved={() => setEditingId(null)}
-                    />
-                  ) : (
-                    <ProductRow
-                      key={product.id}
-                      product={product}
-                      canManageSku={canManageSku}
-                      selected={selectedIds.includes(product.id)}
-                      onToggleSelect={() => {
-                        setSelectedIds(prev =>
-                          prev.includes(product.id) ? prev.filter(id => id !== product.id) : [...prev, product.id]
-                        );
-                      }}
-                      onEdit={() => setEditingId(product.id)}
-                      onPhotos={() => setPhotosProductId(product.id)}
-                      onUnits={() => setUnitsProductId(product.id)}
-                    />
-                  )
-                )}
-              </tbody>
-            </table>
-          </div>
+                </tbody>
+              </table>
+            </div>
+
+            <div className="md:hidden grid grid-cols-1 gap-4 p-4">
+              {filteredProducts?.map((p) =>
+                editingId === p.id ? (
+                  <MobileEditProductCard
+                    key={p.id}
+                    product={p}
+                    onCancel={() => setEditingId(null)}
+                    onSaved={() => setEditingId(null)}
+                  />
+                ) : (
+                  <MobileProductCard
+                    key={p.id}
+                    product={p}
+                    canManageSku={canManageSku}
+                    selected={selectedIds.includes(p.id)}
+                    onToggleSelect={() => {
+                      setSelectedIds(prev =>
+                        prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
+                      );
+                    }}
+                    onEdit={() => setEditingId(p.id)}
+                    onPhotos={() => setPhotosProductId(p.id)}
+                    onUnits={() => setUnitsProductId(p.id)}
+                  />
+                )
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -1614,5 +1650,187 @@ function DeleteProductButton({ id, name }: { id: number; name: string }) {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  );
+}
+function MobileProductCard({
+  product,
+  canManageSku,
+  selected,
+  onToggleSelect,
+  onEdit,
+  onPhotos,
+  onUnits,
+}: {
+  product: Product;
+  canManageSku: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
+  onEdit: () => void;
+  onPhotos: () => void;
+  onUnits: () => void;
+}) {
+  const { data: photos } = useProductPhotos(product.id);
+  const firstPhoto = photos?.[0];
+
+  return (
+    <div className={cn(
+      "bg-white border rounded-2xl p-4 shadow-sm transition-all duration-300",
+      selected ? "ring-2 ring-primary border-primary/20 bg-primary/5" : "border-border/50 hover:border-primary/20"
+    )}>
+      <div className="flex items-start gap-4">
+        {canManageSku && (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelect}
+            className="rounded mt-1.5"
+          />
+        )}
+        <button
+          onClick={onPhotos}
+          className="w-16 h-16 rounded-xl overflow-hidden border border-border/50 flex items-center justify-center bg-muted/30 shrink-0"
+        >
+          {firstPhoto ? (
+            <img src={firstPhoto.url} className="w-full h-full object-cover" alt="" />
+          ) : product.photoUrl ? (
+            <img src={product.photoUrl} className="w-full h-full object-cover" alt="" />
+          ) : (
+            <ImageIcon className="w-6 h-6 text-muted-foreground/30" />
+          )}
+        </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-mono font-bold text-muted-foreground tracking-wider uppercase">
+              {product.locationType === "gudang" && product.productCode ? product.productCode : product.sku}
+            </span>
+            <Badge variant={product.locationType === "gudang" ? "outline" : "secondary"} className="text-[9px] h-4 px-1 whitespace-nowrap">
+              {product.locationType === "gudang" ? "GUDANG" : "TOKO"}
+            </Badge>
+          </div>
+          <h3 className="font-bold text-foreground leading-tight mt-1 line-clamp-2">{product.name}</h3>
+          <div className="flex items-center gap-2 mt-2">
+            <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-600 border-none font-medium">
+              {product.category || "No Category"}
+            </Badge>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between mt-4 pt-4 border-t border-dashed border-border/50">
+        <div className="flex flex-col">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Stok Saat Ini</span>
+          <span className={cn("text-lg font-bold", product.currentStock < 10 ? "text-orange-600" : "text-foreground")}>
+            {product.currentStock.toLocaleString("id-ID")}
+          </span>
+        </div>
+
+        <div className="flex gap-2">
+          {canManageSku && (
+            <>
+              <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl text-muted-foreground bg-white" onClick={onUnits}>
+                <Layers className="w-4 h-4" />
+              </Button>
+              <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl text-muted-foreground bg-white" onClick={onEdit}>
+                <Pencil className="w-4 h-4" />
+              </Button>
+              <DeleteProductButton id={product.id} name={product.name} />
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeleteProductButton({ id, name }: { id: number; name: string }) {
+  const deleteProduct = useDeleteProduct();
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl text-red-500 hover:text-red-600 bg-white border-red-50 hover:bg-red-50">
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Hapus Produk?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Apakah Anda yakin ingin menghapus <strong>{name}</strong>? Tindakan ini tidak dapat dibatalkan.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Batal</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => deleteProduct.mutate(id)}
+            className="bg-destructive text-destructive-foreground"
+          >
+            {deleteProduct.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Hapus
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+function MobileEditProductCard({ product, onCancel, onSaved }: { product: Product; onCancel: () => void; onSaved: () => void }) {
+  const [name, setName] = useState(product.name);
+  const [currentStock, setCurrentStock] = useState(product.currentStock);
+  const updateProduct = useUpdateProduct();
+
+  const handleSave = () => {
+    updateProduct.mutate(
+      { id: product.id, name, currentStock },
+      { onSuccess: onSaved }
+    );
+  };
+
+  return (
+    <div className="bg-primary/5 border-2 border-primary/20 rounded-2xl p-4 shadow-md animate-in fade-in zoom-in duration-200">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-mono font-bold text-primary/60 tracking-wider uppercase">{product.sku}</span>
+          <Badge variant="outline" className="text-[9px] bg-white border-primary/20 text-primary">EDIT MODE</Badge>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase px-1">Nama Produk</label>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="bg-white rounded-xl border-primary/10"
+            placeholder="Nama produk..."
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase px-1">Stok Saat Ini</label>
+          <Input
+            type="number"
+            value={currentStock}
+            onChange={(e) => setCurrentStock(parseInt(e.target.value) || 0)}
+            className="bg-white rounded-xl border-primary/10"
+          />
+        </div>
+
+        <div className="flex gap-2 pt-2">
+          <Button
+            className="flex-1 bg-primary text-white rounded-xl h-11"
+            onClick={handleSave}
+            disabled={updateProduct.isPending}
+          >
+            {updateProduct.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+            Simpan Perubahan
+          </Button>
+          <Button
+            variant="outline"
+            className="rounded-xl h-11 border-border/50 bg-white"
+            onClick={onCancel}
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
