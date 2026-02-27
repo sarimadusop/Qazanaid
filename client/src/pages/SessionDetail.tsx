@@ -96,21 +96,21 @@ export default function SessionDetail() {
 
     const data = isGudangSession
       ? session.records.map(r => ({
-          "Product Name": r.product.name,
-          "Product Code": r.product.productCode || "",
-          "Unit": r.product.units?.[0]?.unitName || "",
-          "Category": r.product.category || "",
-          "Sub Category": r.product.subCategory || "",
-          "Actual Stock": r.actualStock ?? 0,
-          "Notes": r.notes || "",
-        }))
+        "Product Name": r.product.name,
+        "Product Code": r.product.productCode || "",
+        "Unit": r.product.units?.[0]?.unitName || "",
+        "Category": r.product.category || "",
+        "Sub Category": r.product.subCategory || "",
+        "Actual Stock": r.actualStock ?? 0,
+        "Notes": r.notes || "",
+      }))
       : session.records.map(r => ({
-          SKU: r.product.sku,
-          "Product Name": r.product.name,
-          Category: r.product.category || "",
-          "Actual Stock": r.actualStock ?? 0,
-          "Notes": r.notes || "",
-        }));
+        SKU: r.product.sku,
+        "Product Name": r.product.name,
+        Category: r.product.category || "",
+        "Actual Stock": r.actualStock ?? 0,
+        "Notes": r.notes || "",
+      }));
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -217,42 +217,73 @@ export default function SessionDetail() {
           </Button>
 
           {!isCompleted && canCount && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button className="bg-emerald-600 text-white" data-testid="button-finalize">
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Finalize Session
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Finalize Stock Opname?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will mark the session as completed. Ensure all counts are entered correctly.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <div className="py-3 space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Total Produk</span>
-                    <span className="font-medium">{stats.total}</span>
+            <>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button className="bg-emerald-600 text-white" data-testid="button-finalize">
+                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                    Finalize Session
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Finalize Stock Opname?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will mark the session as completed. Ensure all counts are entered correctly.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <div className="py-3 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total Produk</span>
+                      <span className="font-medium">{stats.total}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Sudah Dihitung</span>
+                      <span className="font-medium">{stats.counted}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Belum Dihitung</span>
+                      <span className="font-medium text-amber-600">{stats.total - stats.counted}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Sudah Dihitung</span>
-                    <span className="font-medium">{stats.counted}</span>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={completeSession.isPending}>Cancel</AlertDialogCancel>
+                    <Button
+                      onClick={handleComplete}
+                      className="bg-emerald-600"
+                      disabled={completeSession.isPending}
+                      data-testid="button-confirm-finalize"
+                    >
+                      {completeSession.isPending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Finalizing...
+                        </>
+                      ) : (
+                        <>Confirm & Complete</>
+                      )}
+                    </Button>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              <Dialog open={completeSession.isPending}>
+                <DialogContent className="sm:max-w-[400px] text-center py-10">
+                  <div className="flex flex-col items-center justify-center space-y-6">
+                    <div className="relative">
+                      <div className="w-20 h-20 rounded-full border-4 border-emerald-100 border-t-emerald-600 animate-spin" />
+                      <CheckCircle2 className="w-10 h-10 text-emerald-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                    </div>
+                    <div className="space-y-2">
+                      <DialogTitle className="text-xl">Finalizing Session...</DialogTitle>
+                      <p className="text-muted-foreground">
+                        Please wait while we finalize your stock counts and update the inventory.
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Belum Dihitung</span>
-                    <span className="font-medium text-amber-600">{stats.total - stats.counted}</span>
-                  </div>
-                </div>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleComplete} className="bg-emerald-600" data-testid="button-confirm-finalize">
-                    Confirm & Complete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                </DialogContent>
+              </Dialog>
+            </>
           )}
         </div>
       </div>
