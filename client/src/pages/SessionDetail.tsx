@@ -285,16 +285,21 @@ export default function SessionDetail() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 p-3 bg-primary/5 rounded-2xl border border-primary/20 min-w-[200px]">
-          <label className="text-[10px] font-bold text-primary uppercase tracking-widest flex items-center gap-1.5 px-1">
-            <User className="w-3 h-3" />
-            Petugas Aktif
-          </label>
+        <div className="flex items-center gap-3 p-2 px-4 bg-primary/5 rounded-2xl border border-primary/10 shadow-sm transition-all hover:border-primary/20 group">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors duration-300">
+              <User className="w-4 h-4" />
+            </div>
+            <div className="hidden sm:block">
+              <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest leading-tight">Petugas</p>
+              <p className="text-xs font-bold text-primary leading-tight">Aktif</p>
+            </div>
+          </div>
           <Select value={currentCounter} onValueChange={setCurrentCounter} disabled={isCompleted || !canCount}>
-            <SelectTrigger className="h-10 bg-white border-primary/10 shadow-sm rounded-xl">
+            <SelectTrigger className="h-9 min-w-[140px] bg-transparent border-none shadow-none focus:ring-0 px-1 font-medium text-foreground">
               <SelectValue placeholder="Pilih petugas..." />
             </SelectTrigger>
-            <SelectContent className="rounded-xl border-primary/10">
+            <SelectContent className="rounded-xl border-primary/10 shadow-xl">
               {staffNames.map(name => (
                 <SelectItem key={name} value={name} className="rounded-lg">{name}</SelectItem>
               ))}
@@ -422,7 +427,7 @@ export default function SessionDetail() {
         categories={categories ?? []}
       />
 
-      <div className="bg-card border border-border/50 rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-card border border-border/50 rounded-2xl shadow-sm overflow-hidden hidden md:block">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="bg-muted/30 border-b border-border/50">
@@ -450,6 +455,20 @@ export default function SessionDetail() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Mobile Records View */}
+      <div className="grid grid-cols-1 gap-4 md:hidden">
+        {records.map((record) => (
+          <MobileRecordCard
+            key={record.id}
+            record={record}
+            sessionId={sessionId}
+            readOnly={isCompleted || !canCount}
+            isGudang={session.locationType === "gudang"}
+            currentCounter={currentCounter}
+          />
+        ))}
       </div>
 
       <Dialog open={completionDialogOpen} onOpenChange={setCompletionDialogOpen}>
@@ -1361,6 +1380,297 @@ function SessionCategoryPriorityDialog({ open, onOpenChange, categories }: {
             Simpan Urutan
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MobileRecordCard({ record, sessionId, readOnly, isGudang, currentCounter }: { record: OpnameRecordWithProduct; sessionId: number; readOnly: boolean; isGudang: boolean; currentCounter: string }) {
+  const updateRecord = useUpdateRecord();
+  const uploadPhoto = useUploadRecordPhoto();
+  const deletePhoto = useDeleteRecordPhoto();
+  const [actual, setActual] = useState(record.actualStock?.toString() ?? "");
+  const [returned, setReturned] = useState(record.returnedQuantity?.toString() ?? "");
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const productUnits = record.product.units ?? [];
+  const hasUnits = isGudang && productUnits.length > 0;
+
+  const parseExistingUnitValues = useCallback((): Record<string, number> => {
+    if (!record.unitValues) return {};
+    try {
+      return JSON.parse(record.unitValues);
+    } catch {
+      return {};
+    }
+  }, [record.unitValues]);
+
+  const [unitInputs, setUnitInputs] = useState<Record<string, string>>(() => {
+    const existing = parseExistingUnitValues();
+    const result: Record<string, string> = {};
+    productUnits.forEach(u => {
+      result[u.unitName] = existing[u.unitName]?.toString() ?? "";
+    });
+    return result;
+  });
+
+  const computedTotal = useMemo(() => {
+    if (!hasUnits) return 0;
+    let total = 0;
+    productUnits.forEach(u => {
+      const val = parseFloat(unitInputs[u.unitName] || "0");
+      if (!isNaN(val)) {
+        total += val * u.conversionToBase;
+      }
+    });
+    return Math.round(total);
+  }, [unitInputs, productUnits, hasUnits]);
+
+  const allPhotos = record.photos ?? [];
+
+  const handleBlur = () => {
+    const actualVal = parseInt(actual);
+    const returnedVal = parseInt(returned) || 0;
+    if ((!isNaN(actualVal) && actualVal !== record.actualStock) || returnedVal !== record.returnedQuantity) {
+      updateRecord.mutate({
+        sessionId,
+        productId: record.productId,
+        actualStock: isNaN(actualVal) ? (record.actualStock ?? 0) : actualVal,
+        returnedQuantity: returnedVal,
+        countedBy: currentCounter
+      });
+    }
+  };
+
+  const handleUnitBlur = () => {
+    const unitValues: Record<string, number> = {};
+    let anyFilled = false;
+    productUnits.forEach(u => {
+      const val = parseFloat(unitInputs[u.unitName] || "0");
+      if (!isNaN(val) && val > 0) {
+        unitValues[u.unitName] = val;
+        anyFilled = true;
+      }
+    });
+    const returnedVal = parseInt(returned) || 0;
+    if (anyFilled || returnedVal !== record.returnedQuantity) {
+      updateRecord.mutate({
+        sessionId,
+        productId: record.productId,
+        actualStock: computedTotal,
+        unitValues: JSON.stringify(unitValues),
+        returnedQuantity: returnedVal,
+        countedBy: currentCounter
+      });
+    }
+  };
+
+  return (
+    <div className="bg-card border border-border/50 rounded-2xl p-4 space-y-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        {record.product.photos && record.product.photos.length > 0 ? (
+          <img src={record.product.photos[0].url} className="w-16 h-16 rounded-xl object-cover border border-border/50" alt="" />
+        ) : (
+          <div className="w-16 h-16 rounded-xl bg-muted/30 flex items-center justify-center text-muted-foreground/30">
+            <Image className="w-6 h-6" />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <h3 className="font-bold text-foreground truncate">{record.product.name}</h3>
+          <p className="text-xs font-mono text-muted-foreground">{isGudang && record.product.productCode ? record.product.productCode : record.product.sku}</p>
+          <Badge variant="secondary" className="mt-1 text-[10px] uppercase">{record.product.category || "No Category"}</Badge>
+        </div>
+        {record.actualStock !== null && <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 pt-2">
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Jumlah Aktual</label>
+          {hasUnits ? (
+            <div className="space-y-2">
+              {productUnits.map(u => (
+                <div key={u.id} className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    className="h-9 text-center bg-muted/10"
+                    placeholder="0"
+                    value={unitInputs[u.unitName] || ""}
+                    onChange={(e) => setUnitInputs(prev => ({ ...prev, [u.unitName]: e.target.value }))}
+                    onBlur={handleUnitBlur}
+                    disabled={readOnly}
+                  />
+                  <span className="text-[10px] text-muted-foreground">{u.unitName}</span>
+                </div>
+              ))}
+              <p className="text-[10px] font-bold text-primary text-center">Total: {computedTotal.toLocaleString("id-ID")}</p>
+            </div>
+          ) : (
+            <Input
+              type="number"
+              className={cn("h-10 text-center font-bold text-lg", actual !== "" ? "bg-primary/5 border-primary/30 text-primary" : "bg-muted/10")}
+              placeholder="-"
+              value={actual}
+              onChange={(e) => setActual(e.target.value)}
+              onBlur={handleBlur}
+              disabled={readOnly}
+            />
+          )}
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider text-amber-600">Retur</label>
+          <Input
+            type="number"
+            className={cn("h-10 text-center font-bold text-lg", returned !== "" && returned !== "0" ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-muted/10")}
+            placeholder="0"
+            value={returned}
+            onChange={(e) => setReturned(e.target.value)}
+            onBlur={hasUnits ? handleUnitBlur : handleBlur}
+            disabled={readOnly}
+          />
+        </div>
+      </div>
+
+      <div className="pt-2 border-t border-border/50 flex items-center justify-between">
+        <div className="flex -space-x-2 overflow-hidden">
+          {allPhotos.slice(0, 3).map((p, i) => (
+            <img key={p.id} src={p.url} className="w-8 h-8 rounded-full border-2 border-card object-cover" alt="" />
+          ))}
+          {allPhotos.length > 3 && (
+            <div className="w-8 h-8 rounded-full border-2 border-card bg-muted flex items-center justify-center text-[10px] font-bold">
+              +{allPhotos.length - 3}
+            </div>
+          )}
+          {allPhotos.length === 0 && (
+            <div className="w-8 h-8 rounded-full border-2 border-dashed border-border/50 flex items-center justify-center text-muted-foreground/30">
+              <Camera className="w-4 h-4" />
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2">
+          {!readOnly && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 rounded-xl bg-white border-dashed border-primary/30 text-primary"
+              onClick={() => {
+                const input = document.createElement("input");
+                input.type = "file";
+                input.multiple = true;
+                input.accept = "image/*";
+                input.onchange = (e) => {
+                  const files = Array.from((e.target as HTMLInputElement).files || []);
+                  if (files.length > 0) {
+                    files.forEach(file => {
+                      uploadPhoto.mutate({ sessionId, productId: record.productId, file });
+                    });
+                  }
+                };
+                input.click();
+              }}
+            >
+              <Camera className="w-3.5 h-3.5 mr-1.5" />
+              Foto
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" className="h-8 rounded-xl text-muted-foreground" onClick={() => {
+            if (allPhotos.length > 0) {
+              setLightboxIndex(0);
+              setLightboxOpen(true);
+            }
+          }}>Lihat</Button>
+        </div>
+      </div>
+
+      <PhotoLightbox
+        open={lightboxOpen}
+        onOpenChange={setLightboxOpen}
+        photos={allPhotos.map(p => p.url)}
+        initialIndex={lightboxIndex}
+        title={record.product.name}
+        productId={record.productId}
+      />
+    </div>
+  );
+}
+
+function PhotoLightbox({ open, onOpenChange, photos, initialIndex, title, productId }: { open: boolean; onOpenChange: (open: boolean) => void; photos: string[]; initialIndex: number; title: string; productId: number }) {
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [scale, setScale] = useState(1);
+  const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const startPos = useRef({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setCurrentIndex(initialIndex);
+      setScale(1);
+      setTranslate({ x: 0, y: 0 });
+    }
+  }, [open, initialIndex]);
+
+  const goNext = useCallback(() => {
+    setCurrentIndex(prev => (prev + 1) % photos.length);
+    setScale(1);
+    setTranslate({ x: 0, y: 0 });
+  }, [photos.length]);
+
+  const goPrev = useCallback(() => {
+    setCurrentIndex(prev => (prev - 1 + photos.length) % photos.length);
+    setScale(1);
+    setTranslate({ x: 0, y: 0 });
+  }, [photos.length]);
+
+  const zoomIn = () => setScale(prev => Math.min(prev + 0.5, 5));
+  const zoomOut = () => {
+    setScale(prev => {
+      const next = Math.max(prev - 0.5, 1);
+      if (next === 1) setTranslate({ x: 0, y: 0 });
+      return next;
+    });
+  };
+  const resetZoom = () => { setScale(1); setTranslate({ x: 0, y: 0 }); };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (scale <= 1) return;
+    setIsDragging(true);
+    startPos.current = { x: e.clientX - translate.x, y: e.clientY - translate.y };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    setTranslate({ x: e.clientX - startPos.current.x, y: e.clientY - startPos.current.y });
+  };
+
+  const handlePointerUp = () => setIsDragging(false);
+
+  if (photos.length === 0) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[95vw] h-[80vh] max-w-[95vw] p-0 flex flex-col gap-0 border-none bg-black/95">
+        <DialogHeader className="p-4 flex-shrink-0 text-white">
+          <DialogTitle className="text-sm font-medium">{title} ({currentIndex + 1}/{photos.length})</DialogTitle>
+        </DialogHeader>
+        <div className="flex-1 relative overflow-hidden flex items-center justify-center">
+          <button onClick={goPrev} className="absolute left-4 z-10 p-2 bg-white/10 rounded-full text-white hover:bg-white/20"><ChevronLeft /></button>
+          <img
+            src={photos[currentIndex]}
+            className="max-h-full max-w-full object-contain transition-transform"
+            style={{ transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})` }}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+          />
+          <button onClick={goNext} className="absolute right-4 z-10 p-2 bg-white/10 rounded-full text-white hover:bg-white/20"><ChevronRight /></button>
+        </div>
+        <div className="p-4 flex justify-center gap-4">
+          <Button variant="outline" size="icon" className="bg-white/10 border-none text-white hover:bg-white/20" onClick={zoomOut}><ZoomOut /></Button>
+          <Button variant="outline" size="icon" className="bg-white/10 border-none text-white hover:bg-white/20" onClick={zoomIn}><ZoomIn /></Button>
+          <Button variant="outline" className="bg-white/10 border-none text-white hover:bg-white/20" onClick={resetZoom}>Reset</Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
