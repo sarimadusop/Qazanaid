@@ -257,7 +257,7 @@ export default function SessionDetail() {
 
   return (
     <div className="space-y-6 animate-enter pb-12">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
         <div className="flex items-center gap-4">
           <Button variant="outline" size="icon" onClick={() => setLocation("/sessions")} data-testid="button-back">
             <ArrowLeft className="w-4 h-4" />
@@ -291,110 +291,112 @@ export default function SessionDetail() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 p-2 px-4 bg-primary/5 rounded-2xl border border-primary/10 shadow-sm transition-all hover:border-primary/20 group">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors duration-300">
-              <User className="w-4 h-4" />
+        <div className="flex flex-col items-start lg:items-end gap-3 shrink-0">
+          <div className="flex items-center gap-3 p-2 px-4 bg-primary/5 rounded-2xl border border-primary/10 shadow-sm transition-all hover:border-primary/20 group">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors duration-300">
+                <User className="w-4 h-4" />
+              </div>
+              <div className="hidden sm:block">
+                <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest leading-tight">Petugas</p>
+                <p className="text-xs font-bold text-primary leading-tight">Aktif</p>
+              </div>
             </div>
-            <div className="hidden sm:block">
-              <p className="text-[10px] font-bold text-primary/60 uppercase tracking-widest leading-tight">Petugas</p>
-              <p className="text-xs font-bold text-primary leading-tight">Aktif</p>
-            </div>
+            <Select value={currentCounter} onValueChange={setCurrentCounter} disabled={isCompleted || !canCount}>
+              <SelectTrigger className="h-9 min-w-[140px] bg-transparent border-none shadow-none focus:ring-0 px-1 font-medium text-foreground">
+                <SelectValue placeholder="Pilih petugas..." />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-primary/10 shadow-xl">
+                {staffNames.map(name => (
+                  <SelectItem key={name} value={name} className="rounded-lg">{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <Select value={currentCounter} onValueChange={setCurrentCounter} disabled={isCompleted || !canCount}>
-            <SelectTrigger className="h-9 min-w-[140px] bg-transparent border-none shadow-none focus:ring-0 px-1 font-medium text-foreground">
-              <SelectValue placeholder="Pilih petugas..." />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl border-primary/10 shadow-xl">
-              {staffNames.map(name => (
-                <SelectItem key={name} value={name} className="rounded-lg">{name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          {hasPhotos && (
-            <Button variant="outline" onClick={() => setDownloadDialogOpen(true)} data-testid="button-download-zip">
-              <FileArchive className="w-4 h-4 mr-2" />
-              Download Foto ZIP
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {hasPhotos && (
+              <Button variant="outline" onClick={() => setDownloadDialogOpen(true)} data-testid="button-download-zip">
+                <FileArchive className="w-4 h-4 mr-2" />
+                Download Foto ZIP
+              </Button>
+            )}
+
+            <Button variant="outline" onClick={exportToExcel} data-testid="button-export">
+              <Download className="w-4 h-4 mr-2" />
+              Export Excel
             </Button>
-          )}
 
-          <Button variant="outline" onClick={exportToExcel} data-testid="button-export">
-            <Download className="w-4 h-4 mr-2" />
-            Export Excel
-          </Button>
-
-          {!isCompleted && canCount && (
-            <>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button className="bg-emerald-600 text-white" data-testid="button-finalize">
-                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                    Finalize Session
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Finalize Stock Opname?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will mark the session as completed. Ensure all counts are entered correctly.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <div className="py-3 space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Total Produk</span>
-                      <span className="font-medium">{stats.total}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Sudah Dihitung</span>
-                      <span className="font-medium">{stats.counted}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Belum Dihitung</span>
-                      <span className="font-medium text-amber-600">{stats.total - stats.counted}</span>
-                    </div>
-                  </div>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel disabled={completeSession.isPending}>Cancel</AlertDialogCancel>
-                    <Button
-                      onClick={handleComplete}
-                      className="bg-emerald-600"
-                      disabled={completeSession.isPending}
-                      data-testid="button-confirm-finalize"
-                    >
-                      {completeSession.isPending ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Finalizing...
-                        </>
-                      ) : (
-                        <>Confirm & Complete</>
-                      )}
+            {!isCompleted && canCount && (
+              <>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button className="bg-emerald-600 text-white" data-testid="button-finalize">
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                      Finalize Session
                     </Button>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Finalize Stock Opname?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will mark the session as completed. Ensure all counts are entered correctly.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="py-3 space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Total Produk</span>
+                        <span className="font-medium">{stats.total}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Sudah Dihitung</span>
+                        <span className="font-medium">{stats.counted}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Belum Dihitung</span>
+                        <span className="font-medium text-amber-600">{stats.total - stats.counted}</span>
+                      </div>
+                    </div>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={completeSession.isPending}>Cancel</AlertDialogCancel>
+                      <Button
+                        onClick={handleComplete}
+                        className="bg-emerald-600"
+                        disabled={completeSession.isPending}
+                        data-testid="button-confirm-finalize"
+                      >
+                        {completeSession.isPending ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Finalizing...
+                          </>
+                        ) : (
+                          <>Confirm & Complete</>
+                        )}
+                      </Button>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
 
-              <Dialog open={completeSession.isPending}>
-                <DialogContent className="sm:max-w-[400px] text-center py-10">
-                  <div className="flex flex-col items-center justify-center space-y-6">
-                    <div className="relative">
-                      <div className="w-20 h-20 rounded-full border-4 border-emerald-100 border-t-emerald-600 animate-spin" />
-                      <CheckCircle2 className="w-10 h-10 text-emerald-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                <Dialog open={completeSession.isPending}>
+                  <DialogContent className="sm:max-w-[400px] text-center py-10">
+                    <div className="flex flex-col items-center justify-center space-y-6">
+                      <div className="relative">
+                        <div className="w-20 h-20 rounded-full border-4 border-emerald-100 border-t-emerald-600 animate-spin" />
+                        <CheckCircle2 className="w-10 h-10 text-emerald-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                      </div>
+                      <div className="space-y-2">
+                        <DialogTitle className="text-xl">Finalizing Session...</DialogTitle>
+                        <p className="text-muted-foreground">
+                          Please wait while we finalize your stock counts and update the inventory.
+                        </p>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <DialogTitle className="text-xl">Finalizing Session...</DialogTitle>
-                      <p className="text-muted-foreground">
-                        Please wait while we finalize your stock counts and update the inventory.
-                      </p>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </>
-          )}
+                  </DialogContent>
+                </Dialog>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1206,7 +1208,7 @@ const RecordRow = memo(({ record, sessionId, readOnly, isCompleted, isGudang, cu
                 value={returned}
                 onChange={(e) => setReturned(e.target.value)}
                 onBlur={hasUnits ? handleUnitBlur : handleBlur}
-                disabled={!canCount}
+                disabled={false}
                 data-testid={`input-returned-${record.productId}`}
               />
             </div>

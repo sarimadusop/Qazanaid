@@ -219,7 +219,7 @@ export default function Products() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap justify-start md:justify-end">
             {canManageSku && (
               <>
                 {selectedIds.length > 0 && (
@@ -476,8 +476,8 @@ export default function Products() {
             )}
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap flex-1">
-            <div className="relative flex-1 min-w-[200px] max-w-xs group">
+          <div className="flex items-center gap-3 flex-wrap flex-1 lg:justify-end">
+            <div className="relative flex-1 lg:flex-none lg:w-64 min-w-[200px] group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
               <Input
                 placeholder="Cari SKU atau Nama..."
