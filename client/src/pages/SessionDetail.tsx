@@ -115,6 +115,7 @@ export default function SessionDetail() {
         "Category": r.product.category || "",
         "Sub Category": r.product.subCategory || "",
         "Actual Stock": r.actualStock ?? 0,
+        "Retur": r.returnedQuantity ?? 0,
         "Notes": r.notes || "",
       }))
       : session.records.map(r => ({
@@ -122,6 +123,7 @@ export default function SessionDetail() {
         "Product Name": r.product.name,
         Category: r.product.category || "",
         "Actual Stock": r.actualStock ?? 0,
+        "Retur": r.returnedQuantity ?? 0,
         "Notes": r.notes || "",
       }));
 
@@ -361,7 +363,8 @@ export default function SessionDetail() {
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[15%]">{isGudangSession ? "Kode Produk" : "SKU"}</th>
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[20%]">Produk</th>
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[10%]">Kategori</th>
-                <th className="px-6 py-4 font-medium text-muted-foreground w-[22%] text-center">Jumlah Aktual</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[15%] text-center">Jumlah Aktual</th>
+                <th className="px-6 py-4 font-medium text-muted-foreground w-[12%] text-center">Retur</th>
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[23%] text-center">Foto</th>
                 <th className="px-6 py-4 font-medium text-muted-foreground w-[10%]">Status</th>
               </tr>
@@ -858,6 +861,7 @@ function RecordRow({ record, sessionId, readOnly, isGudang, currentCounter }: { 
   const deletePhoto = useDeleteRecordPhoto();
   const uploadLegacyPhoto = useUploadOpnamePhoto();
   const [actual, setActual] = useState(record.actualStock?.toString() ?? "");
+  const [returned, setReturned] = useState(record.returnedQuantity?.toString() ?? "");
   const [isFocused, setIsFocused] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -915,13 +919,18 @@ function RecordRow({ record, sessionId, readOnly, isGudang, currentCounter }: { 
 
   const handleBlur = () => {
     setIsFocused(false);
-    if (hasUnits) return;
-    const val = parseInt(actual);
-    if (!isNaN(val) && val !== record.actualStock) {
+    const actualVal = parseInt(actual);
+    const returnedVal = parseInt(returned) || 0;
+
+    const hasActualChanged = !isNaN(actualVal) && actualVal !== record.actualStock;
+    const hasReturnedChanged = returnedVal !== record.returnedQuantity;
+
+    if (hasActualChanged || hasReturnedChanged) {
       updateRecord.mutate({
         sessionId,
         productId: record.productId,
-        actualStock: val,
+        actualStock: isNaN(actualVal) ? (record.actualStock ?? 0) : actualVal,
+        returnedQuantity: returnedVal,
         countedBy: currentCounter
       });
     }
@@ -939,12 +948,16 @@ function RecordRow({ record, sessionId, readOnly, isGudang, currentCounter }: { 
       }
     });
 
-    if (anyFilled) {
+    const returnedVal = parseInt(returned) || 0;
+    const hasReturnedChanged = returnedVal !== record.returnedQuantity;
+
+    if (anyFilled || hasReturnedChanged) {
       updateRecord.mutate({
         sessionId,
         productId: record.productId,
         actualStock: computedTotal,
         unitValues: JSON.stringify(unitValues),
+        returnedQuantity: returnedVal,
         countedBy: currentCounter
       });
     }
@@ -1071,6 +1084,23 @@ function RecordRow({ record, sessionId, readOnly, isGudang, currentCounter }: { 
               />
             </div>
           )}
+        </td>
+        <td className="px-6 py-4">
+          <div className="flex justify-center">
+            <Input
+              type="number"
+              className={cn(
+                "w-20 text-center transition-all",
+                returned !== "" && returned !== "0" && "border-amber-400/50 bg-amber-50 text-amber-700 font-bold"
+              )}
+              placeholder="0"
+              value={returned}
+              onChange={(e) => setReturned(e.target.value)}
+              onBlur={hasUnits ? handleUnitBlur : handleBlur}
+              disabled={updateRecord.isPending}
+              data-testid={`input-returned-${record.productId}`}
+            />
+          </div>
         </td>
         <td className="px-6 py-3">
           <div className="flex items-center justify-center gap-1 flex-wrap">

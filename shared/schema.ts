@@ -64,6 +64,8 @@ export const opnameRecords = pgTable("opname_records", {
   photoUrl: text("photo_url"),
   unitValues: text("unit_values"),
   countedBy: text("counted_by"),
+  returnedQuantity: integer("returned_quantity").default(0),
+  returnedNotes: text("returned_notes"),
 });
 
 export const opnameRecordPhotos = pgTable("opname_record_photos", {
