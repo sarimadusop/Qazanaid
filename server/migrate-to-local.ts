@@ -14,16 +14,48 @@ async function migrateData() {
 
     const sourcePool = new pg.Pool({ connectionString: SUPABASE_DB });
     const targetPool = new pg.Pool({ connectionString: LOCAL_DB });
-    
-    const dbSource = drizzle(sourcePool);
-    const dbTarget = drizzle(targetPool);
 
     try {
-        console.log("📝 Step 1: Sinkronisasi data utama (Opsional jika sudah export/import SQL)...");
-        // Catatan: Cara terbaik adalah pg_dump & pg_restore. 
-        // Script ini fokus pada UPDATE URL foto agar point ke lokal.
+        console.log("📝 Step 1: Menyalin data tabel...");
+        const tables = [
+            "users",
+            "user_roles",
+            "products",
+            "product_photos",
+            "product_units",
+            "opname_sessions",
+            "opname_records",
+            "opname_record_photos",
+            "staff_members",
+            "announcements",
+            "feedback",
+            "motivation_messages",
+            "category_priorities"
+        ];
 
-        console.log("🖼️ Step 2: Mengubah URL Supabase/Replit ke folder lokal /uploads/...");
+        for (const table of tables) {
+            console.log(`📡 Menyalin tabel: ${table}...`);
+            const { rows, fields } = await sourcePool.query(`SELECT * FROM ${table}`);
+            if (rows.length === 0) {
+                console.log(`ℹ️ Tabel ${table} kosong, dilewati.`);
+                continue;
+            }
+
+            // Hapus data lama di target agar tidak duplikat atau bentrok (Opsional, gunakan ON CONFLICT jika lebih aman)
+            // await targetPool.query(`TRUNCATE TABLE ${table} CASCADE`);
+
+            for (const row of rows) {
+                const columns = fields.map(f => `"${f.name}"`).join(", ");
+                const values = fields.map((_, i) => `$${i + 1}`).join(", ");
+                const params = fields.map(f => row[f.name]);
+                
+                // Gunakan ON CONFLICT DO NOTHING agar tidak error jika id sudah ada
+                await targetPool.query(`INSERT INTO ${table} (${columns}) VALUES (${values}) ON CONFLICT DO NOTHING`, params);
+            }
+            console.log(`✅ ${table}: ${rows.length} baris diproses.`);
+        }
+
+        console.log("\n🖼️ Step 2: Mengubah URL Supabase/Replit ke folder lokal /uploads/...");
 
         const updateUrls = async (tableName: string, colName: string) => {
             const { rows } = await targetPool.query(`SELECT id, ${colName} as url FROM ${tableName} WHERE ${colName} IS NOT NULL`);
@@ -40,15 +72,13 @@ async function migrateData() {
             console.log(`✅ ${tableName}.${colName}: ${count} URL diperbarui.`);
         };
 
-        await updateUrls("products", "photo_url");
-        await updateUrls("product_photos", "url");
-        await updateUrls("opname_records", "photo_url");
-        await updateUrls("opname_record_photos", "url");
+        if (tables.includes("products")) await updateUrls("products", "photo_url");
+        if (tables.includes("product_photos")) await updateUrls("product_photos", "url");
+        if (tables.includes("opname_records")) await updateUrls("opname_records", "photo_url");
+        if (tables.includes("opname_record_photos")) await updateUrls("opname_record_photos", "url");
 
         console.log("\n✨ SINKRONISASI SELESAI!");
-        console.log("Langkah selanjutnya:");
-        console.log("1. Pastikan semua file .jpg dari Replit sudah di-copy ke folder 'uploads' di VPS.");
-        console.log("2. Restart app: docker-compose restart app");
+        console.log("Sekarang silakan coba login di aplikasi.");
 
     } catch (err) {
         console.error("❌ Gagal migrasi:", err);
