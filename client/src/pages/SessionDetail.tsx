@@ -53,6 +53,19 @@ export default function SessionDetail() {
   const { toast } = useToast();
   const { data: categoryPriorities } = useCategoryPriorities();
 
+  const [currentCounter, setCurrentCounter] = useState<string>("");
+
+  const staffNames = useMemo(() => {
+    if (!session?.assignedTo) return [];
+    return session.assignedTo.split(", ").map(s => s.trim());
+  }, [session?.assignedTo]);
+
+  useEffect(() => {
+    if (staffNames.length > 0 && !currentCounter) {
+      setCurrentCounter(staffNames[0]);
+    }
+  }, [staffNames, currentCounter]);
+
   const isCompleted = session?.status === "completed";
 
   const records = useMemo(() => {
@@ -203,6 +216,23 @@ export default function SessionDetail() {
           </div>
         </div>
 
+        <div className="flex flex-col gap-2 p-3 bg-primary/5 rounded-2xl border border-primary/20 min-w-[200px]">
+          <label className="text-[10px] font-bold text-primary uppercase tracking-widest flex items-center gap-1.5 px-1">
+            <User className="w-3 h-3" />
+            Petugas Aktif
+          </label>
+          <Select value={currentCounter} onValueChange={setCurrentCounter} disabled={isCompleted || !canCount}>
+            <SelectTrigger className="h-10 bg-white border-primary/10 shadow-sm rounded-xl">
+              <SelectValue placeholder="Pilih petugas..." />
+            </SelectTrigger>
+            <SelectContent className="rounded-xl border-primary/10">
+              {staffNames.map(name => (
+                <SelectItem key={name} value={name} className="rounded-lg">{name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="flex items-center gap-3 flex-wrap">
           {hasPhotos && (
             <Button variant="outline" onClick={() => setDownloadDialogOpen(true)} data-testid="button-download-zip">
@@ -344,6 +374,7 @@ export default function SessionDetail() {
                   sessionId={sessionId}
                   readOnly={isCompleted || !canCount}
                   isGudang={session.locationType === "gudang"}
+                  currentCounter={currentCounter}
                 />
               ))}
             </tbody>
@@ -821,7 +852,7 @@ function PhotoLightbox({ open, onOpenChange, photos, initialIndex, title, produc
   );
 }
 
-function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRecordWithProduct; sessionId: number; readOnly: boolean; isGudang: boolean }) {
+function RecordRow({ record, sessionId, readOnly, isGudang, currentCounter }: { record: OpnameRecordWithProduct; sessionId: number; readOnly: boolean; isGudang: boolean; currentCounter: string }) {
   const updateRecord = useUpdateRecord();
   const uploadPhoto = useUploadRecordPhoto();
   const deletePhoto = useDeleteRecordPhoto();
@@ -890,7 +921,8 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
       updateRecord.mutate({
         sessionId,
         productId: record.productId,
-        actualStock: val
+        actualStock: val,
+        countedBy: currentCounter
       });
     }
   };
@@ -913,6 +945,7 @@ function RecordRow({ record, sessionId, readOnly, isGudang }: { record: OpnameRe
         productId: record.productId,
         actualStock: computedTotal,
         unitValues: JSON.stringify(unitValues),
+        countedBy: currentCounter
       });
     }
   };

@@ -32,12 +32,14 @@ const locationTypeColors: Record<string, string> = {
 
 export default function StaffManagement() {
   const { data: staffMembers, isLoading } = useStaff();
-  const { isAdmin, canManageSku } = useRole();
+  const { isAdmin, isSKUManager, role, isLoading: roleLoading } = useRole();
   const [locationFilter, setLocationFilter] = useState<string>("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  const canManage = isAdmin || canManageSku;
+  const canManage = isAdmin || isSKUManager || role === "stock_counter_toko" || role === "stock_counter_gudang";
+
+  if (roleLoading) return <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   if (!canManage) {
     return (

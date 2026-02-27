@@ -608,13 +608,13 @@ export async function registerRoutes(
     if (!session || session.userId !== adminId) {
       return res.status(404).json({ message: 'Session not found' });
     }
-    const { productId, actualStock, notes, unitValues } = req.body;
+    const { productId, actualStock, notes, unitValues, countedBy } = req.body;
 
     if (typeof productId !== 'number' || typeof actualStock !== 'number') {
       return res.status(400).json({ message: "Invalid input" });
     }
 
-    const record = await storage.updateRecord(sessionId, productId, actualStock, notes, unitValues);
+    const record = await storage.updateRecord(sessionId, productId, actualStock, notes, unitValues, countedBy);
     res.json(record);
   });
 

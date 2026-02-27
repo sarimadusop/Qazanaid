@@ -63,6 +63,7 @@ export const opnameRecords = pgTable("opname_records", {
   notes: text("notes"),
   photoUrl: text("photo_url"),
   unitValues: text("unit_values"),
+  countedBy: text("counted_by"),
 });
 
 export const opnameRecordPhotos = pgTable("opname_record_photos", {
@@ -157,7 +158,7 @@ export const opnameSessionsRelations = relations(opnameSessions, ({ many }) => (
   records: many(opnameRecords),
 }));
 
-export const staffMembersRelations = relations(staffMembers, ({}) => ({}));
+export const staffMembersRelations = relations(staffMembers, ({ }) => ({}));
 
 // === Insert Schemas ===
 

@@ -19,6 +19,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const sessionFormSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -120,7 +121,7 @@ export default function Sessions() {
                     <StatusBadge status={session.status} />
                   </div>
                 </div>
-                
+
                 <h3 className="font-display font-bold text-lg mb-2">{session.title}</h3>
                 <p className="text-sm text-muted-foreground line-clamp-2 mb-2 flex-1">
                   {session.notes || "No additional notes provided."}
@@ -161,7 +162,7 @@ function CreateSessionDialog({
   const { canCountToko, canCountGudang, role } = useRole();
 
   const [step, setStep] = useState<"staff" | "details">("staff");
-  const [selectedStaff, setSelectedStaff] = useState<string>("");
+  const [selectedStaff, setSelectedStaff] = useState<string[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<string>(currentLocationType);
 
   const activeMotivation = useMemo(() => {
@@ -190,7 +191,7 @@ function CreateSessionDialog({
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       setStep("staff");
-      setSelectedStaff("");
+      setSelectedStaff([]);
       setSelectedLocation(currentLocationType);
       form.reset();
     }
@@ -198,19 +199,31 @@ function CreateSessionDialog({
   };
 
   const handleStaffContinue = () => {
-    if (selectedStaff) {
+    if (selectedStaff.length > 0) {
       setStep("details");
     }
   };
 
+  const toggleStaff = (id: string) => {
+    setSelectedStaff(prev =>
+      prev.includes(id)
+        ? prev.filter(s => s !== id)
+        : [...prev, id]
+    );
+  };
+
   const onSubmit = (data: z.infer<typeof sessionFormSchema>) => {
-    const staffName = filteredStaff.find((s) => String(s.id) === selectedStaff)?.name || "";
+    const staffNames = filteredStaff
+      .filter((s) => selectedStaff.includes(String(s.id)))
+      .map(s => s.name)
+      .join(", ");
+
     createSession.mutate(
       {
         ...data,
         locationType: selectedLocation,
-        startedByName: staffName,
-        assignedTo: staffName,
+        startedByName: staffNames.split(", ")[0] || "",
+        assignedTo: staffNames,
       },
       {
         onSuccess: () => {
@@ -278,49 +291,63 @@ function CreateSessionDialog({
                 </div>
               )}
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Petugas</label>
-                <Select value={selectedStaff} onValueChange={setSelectedStaff} data-testid="select-staff">
-                  <SelectTrigger data-testid="select-staff-trigger">
-                    <SelectValue placeholder="Pilih petugas..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-card border border-border">
-                    {filteredStaff.length === 0 ? (
-                      <div className="p-3 text-sm text-muted-foreground text-center">
-                        Tidak ada petugas untuk lokasi ini
-                      </div>
-                    ) : (
-                      filteredStaff.map((staff) => (
-                        <SelectItem
-                          key={staff.id}
-                          value={String(staff.id)}
-                          data-testid={`select-staff-${staff.id}`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <User className="w-4 h-4" />
+              <div className="space-y-3">
+                <label className="text-sm font-bold text-foreground uppercase tracking-wider">Pilih Tim SO (Bisa Banyak)</label>
+                <div className="max-h-[300px] overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+                  {filteredStaff.length === 0 ? (
+                    <div className="p-8 border-2 border-dashed border-border/50 rounded-2xl text-center">
+                      <User className="w-8 h-8 mx-auto text-muted-foreground/30 mb-2" />
+                      <p className="text-sm text-muted-foreground">Tidak ada petugas untuk lokasi ini</p>
+                    </div>
+                  ) : (
+                    filteredStaff.map((staff) => (
+                      <div
+                        key={staff.id}
+                        className={cn(
+                          "flex items-center space-x-3 p-4 rounded-xl border transition-all cursor-pointer group",
+                          selectedStaff.includes(String(staff.id))
+                            ? "bg-primary/5 border-primary shadow-sm"
+                            : "bg-card border-border hover:border-primary/50"
+                        )}
+                        onClick={() => toggleStaff(String(staff.id))}
+                      >
+                        <Checkbox
+                          id={`staff-${staff.id}`}
+                          checked={selectedStaff.includes(String(staff.id))}
+                          onCheckedChange={() => toggleStaff(String(staff.id))}
+                          className="h-5 w-5 rounded-md border-primary/20 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <label
+                            htmlFor={`staff-${staff.id}`}
+                            className="text-sm font-bold leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer block truncate"
+                          >
                             {staff.name}
-                          </div>
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                          </label>
+                          <p className="text-[10px] text-muted-foreground mt-1 uppercase font-bold tracking-tight opacity-60">SO Staff</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex justify-end gap-3 pt-4 border-t border-border/50">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   onClick={() => handleOpenChange(false)}
                   data-testid="button-cancel-staff"
+                  className="rounded-xl"
                 >
                   Batal
                 </Button>
                 <Button
                   type="button"
-                  disabled={!selectedStaff}
+                  disabled={selectedStaff.length === 0}
                   onClick={handleStaffContinue}
                   data-testid="button-continue-staff"
+                  className="px-8 rounded-xl bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20"
                 >
                   Lanjutkan
                 </Button>
@@ -334,12 +361,24 @@ function CreateSessionDialog({
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <User className="w-4 h-4" />
-                  <span>Petugas: <span className="font-medium text-foreground">{filteredStaff.find((s) => String(s.id) === selectedStaff)?.name}</span></span>
-                  <Badge variant={selectedLocation === "gudang" ? "secondary" : "outline"}>
-                    {selectedLocation === "gudang" ? "Gudang" : "Toko"}
-                  </Badge>
+                <div className="flex flex-col gap-2 p-4 bg-muted/30 rounded-2xl border border-border/50">
+                  <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                    <User className="w-3.5 h-3.5" />
+                    <span>TIM SO</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {filteredStaff
+                      .filter((s) => selectedStaff.includes(String(s.id)))
+                      .map(s => (
+                        <Badge key={s.id} variant="secondary" className="bg-white border-primary/20 text-primary">
+                          {s.name}
+                        </Badge>
+                      ))
+                    }
+                    <Badge variant={selectedLocation === "gudang" ? "secondary" : "outline"} className="ml-auto">
+                      {selectedLocation === "gudang" ? "Gudang" : "Toko"}
+                    </Badge>
+                  </div>
                 </div>
 
                 <FormField

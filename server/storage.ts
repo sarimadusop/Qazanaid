@@ -42,7 +42,7 @@ export interface IStorage {
   createSession(session: InsertOpnameSession): Promise<OpnameSession>;
   completeSession(id: number): Promise<OpnameSession>;
 
-  updateRecord(sessionId: number, productId: number, actualStock: number, notes?: string, unitValues?: string): Promise<OpnameRecord>;
+  updateRecord(sessionId: number, productId: number, actualStock: number, notes?: string, unitValues?: string, countedBy?: string): Promise<OpnameRecord>;
   updateRecordPhoto(sessionId: number, productId: number, photoUrl: string): Promise<OpnameRecord>;
 
   getRecordPhotos(recordId: number): Promise<OpnameRecordPhoto[]>;
@@ -210,7 +210,7 @@ export class DatabaseStorage implements IStorage {
     return session;
   }
 
-  async updateRecord(sessionId: number, productId: number, actualStock: number, notes?: string, unitValues?: string): Promise<OpnameRecord> {
+  async updateRecord(sessionId: number, productId: number, actualStock: number, notes?: string, unitValues?: string, countedBy?: string): Promise<OpnameRecord> {
     const [existing] = await db.select().from(opnameRecords).where(
       and(eq(opnameRecords.sessionId, sessionId), eq(opnameRecords.productId, productId))
     );
@@ -218,6 +218,9 @@ export class DatabaseStorage implements IStorage {
     const updateData: Record<string, unknown> = { actualStock, notes };
     if (unitValues !== undefined) {
       updateData.unitValues = unitValues;
+    }
+    if (countedBy !== undefined) {
+      updateData.countedBy = countedBy;
     }
 
     if (existing) {
@@ -232,7 +235,8 @@ export class DatabaseStorage implements IStorage {
         productId,
         actualStock,
         notes,
-        unitValues
+        unitValues,
+        countedBy
       }).returning();
       return created;
     }
