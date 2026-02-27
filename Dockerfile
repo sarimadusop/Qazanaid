@@ -29,6 +29,9 @@ RUN npm install --omit=dev
 # Kazana default port
 EXPOSE 5000
 
+# Create uploads directory and ensure it is writable
+RUN mkdir -p /app/uploads && chmod 777 /app/uploads
+
 ENV NODE_ENV=production
 
 CMD ["node", "dist/index.cjs"]

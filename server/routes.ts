@@ -502,7 +502,7 @@ export async function registerRoutes(
       }
     } catch (err) {
       console.error("Record photo upload error:", err);
-      res.status(500).json({ message: "Upload failed" });
+      res.status(500).json({ message: (err as Error).message || "Upload failed" });
     }
   });
 

@@ -64,7 +64,8 @@ export function BackgroundUploadProvider({ children }: { children: React.ReactNo
         setJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: "done" } : j));
       } catch (err) {
         setJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: "error" } : j));
-        toast({ title: "Upload Gagal", description: `Gagal mengupload foto untuk ${job.label}`, variant: "destructive" });
+        const errMsg = (err as Error)?.message || "Gagal mengupload foto";
+        toast({ title: `Upload Gagal: ${job.label}`, description: errMsg, variant: "destructive" });
       }
 
       queueRef.current = queueRef.current.slice(1);
