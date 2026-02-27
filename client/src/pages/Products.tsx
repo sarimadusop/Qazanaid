@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
+import { cn } from "@/lib/utils";
 
 function getDefaultProductTab(role: string): string {
   if (role === "stock_counter_toko") return "toko";
