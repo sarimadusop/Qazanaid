@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
-import { products, productPhotos, opnameRecords, opnameRecordPhotos } from "./shared/schema";
+import { products, productPhotos, opnameRecords, opnameRecordPhotos } from "../shared/schema";
 import { eq, like } from "drizzle-orm";
 
 // 1. Jalankan script ini SETELAH docker-compose up -d
