@@ -16,6 +16,7 @@ import {
   useDeleteProductUnit,
   useCategoryPriorities,
   useSetCategoryPriorities,
+  useBulkResetStock,
   type ExcelImportResult,
 } from "@/hooks/use-products";
 import { BatchPhotoUpload } from "@/components/BatchPhotoUpload";
@@ -28,7 +29,7 @@ import {
   Plus, Search, Trash2, Box, Loader2, Upload, ImageIcon, Filter,
   Download, FileSpreadsheet, CheckCircle2, AlertTriangle, XCircle,
   Pencil, Save, X, Camera, Package, Layers, Store, Warehouse,
-  ArrowUp, ArrowDown, ListOrdered, GripVertical,
+  ArrowUp, ArrowDown, ListOrdered, GripVertical, RotateCcw,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -105,6 +106,8 @@ export default function Products() {
   const [gudangImportLoading, setGudangImportLoading] = useState(false);
   const importExcel = useImportExcel();
   const bulkDelete = useBulkDeleteProducts();
+  const bulkResetStock = useBulkResetStock();
+  const [bulkResetOpen, setBulkResetOpen] = useState(false);
   const excelInputRef = useRef<HTMLInputElement>(null);
   const gudangImportRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -179,40 +182,77 @@ export default function Products() {
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             {canManageSku && selectedIds.length > 0 && (
-              <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" data-testid="button-bulk-delete">
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Hapus {selectedIds.length} Produk
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Hapus {selectedIds.length} Produk?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Tindakan ini tidak dapat dibatalkan. Semua data produk yang dipilih akan dihapus permanen.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel data-testid="button-cancel-bulk-delete">Batal</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => {
-                        bulkDelete.mutate(selectedIds, {
-                          onSuccess: () => {
-                            setSelectedIds([]);
-                            setBulkDeleteOpen(false);
-                          },
-                        });
-                      }}
-                      className="bg-destructive text-destructive-foreground"
-                      data-testid="button-confirm-bulk-delete"
-                    >
-                      {bulkDelete.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                      Hapus
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <>
+                <AlertDialog open={bulkResetOpen} onOpenChange={setBulkResetOpen}>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" className="border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100" data-testid="button-bulk-reset">
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      Reset {selectedIds.length} Stok
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Reset {selectedIds.length} Stok Produk?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Tindakan ini akan merubah stok saat ini menjadi 0 (nol) untuk semua produk yang dipilih. Tindakan ini tidak dapat dibatalkan.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel data-testid="button-cancel-bulk-reset">Batal</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => {
+                          bulkResetStock.mutate(selectedIds, {
+                            onSuccess: () => {
+                              setSelectedIds([]);
+                              setBulkResetOpen(false);
+                            },
+                          });
+                        }}
+                        className="bg-orange-600 text-white hover:bg-orange-700"
+                        data-testid="button-confirm-bulk-reset"
+                      >
+                        {bulkResetStock.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                        Reset Stok
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+
+                <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" data-testid="button-bulk-delete">
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Hapus {selectedIds.length} Produk
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Hapus {selectedIds.length} Produk?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Tindakan ini tidak dapat dibatalkan. Semua data produk yang dipilih akan dihapus permanen.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel data-testid="button-cancel-bulk-delete">Batal</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => {
+                          bulkDelete.mutate(selectedIds, {
+                            onSuccess: () => {
+                              setSelectedIds([]);
+                              setBulkDeleteOpen(false);
+                            },
+                          });
+                        }}
+                        className="bg-destructive text-destructive-foreground"
+                        data-testid="button-confirm-bulk-delete"
+                      >
+                        {bulkDelete.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                        Hapus
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
             )}
             {canManageSku && (
               <>

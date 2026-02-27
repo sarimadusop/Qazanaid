@@ -293,6 +293,32 @@ export function useBulkDeleteProducts() {
   });
 }
 
+export function useBulkResetStock() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (ids: number[]) => {
+      const res = await fetch(api.products.bulkResetStock.path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to reset stock for products");
+      return res.json() as Promise<{ reset: number }>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: [api.products.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.products.withDetails.path] });
+      toast({ title: "Stok Berhasil Direset", description: `${data.reset} produk berhasil diubah stoknya menjadi 0.` });
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
 export function useUploadPhoto() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

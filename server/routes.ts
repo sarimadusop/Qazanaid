@@ -219,6 +219,18 @@ export async function registerRoutes(
     res.json({ deleted });
   });
 
+  app.post(api.products.bulkResetStock.path, isAuthenticated, requireRole("admin", "sku_manager"), async (req, res) => {
+    const adminId = await getTeamAdminId(req);
+    const { ids } = req.body as { ids: number[] };
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "No product IDs provided" });
+    }
+
+    console.log(`Resetting stock for ${ids.length} products by admin ${adminId}`);
+    await storage.bulkResetStock(ids, adminId as string);
+    res.json({ reset: ids.length });
+  });
+
   // === Product Photos (multi-photo support) ===
   app.get(api.productPhotos.list.path, isAuthenticated, async (req, res) => {
     const productId = Number(req.params.productId);

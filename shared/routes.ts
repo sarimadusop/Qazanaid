@@ -38,6 +38,10 @@ export const api = {
       method: 'POST' as const,
       path: '/api/products/bulk-delete' as const,
     },
+    bulkResetStock: {
+      method: 'POST' as const,
+      path: '/api/products/bulk-reset-stock' as const,
+    },
     categories: {
       method: 'GET' as const,
       path: '/api/products/categories' as const,

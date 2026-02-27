@@ -18,7 +18,7 @@ import {
   type ProductWithPhotosAndUnits,
   type CategoryPriority,
 } from "@shared/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, inArray } from "drizzle-orm";
 
 export interface IStorage {
   getProducts(userId: string, locationType?: string): Promise<Product[]>;
@@ -26,6 +26,7 @@ export interface IStorage {
   createProduct(product: InsertProduct): Promise<Product>;
   updateProduct(id: number, product: Partial<InsertProduct>): Promise<Product>;
   deleteProduct(id: number): Promise<void>;
+  bulkResetStock(ids: number[], userId: string): Promise<void>;
   getProductsWithPhotosAndUnits(userId: string): Promise<ProductWithPhotosAndUnits[]>;
 
   getProductPhotos(productId: number): Promise<ProductPhoto[]>;
@@ -102,6 +103,10 @@ export class DatabaseStorage implements IStorage {
 
   async deleteProduct(id: number): Promise<void> {
     await db.delete(products).where(eq(products.id, id));
+  }
+
+  async bulkResetStock(ids: number[], userId: string): Promise<void> {
+    await db.update(products).set({ currentStock: 0 }).where(and(inArray(products.id, ids), eq(products.userId, userId)));
   }
 
   async getProductsWithPhotosAndUnits(userId: string): Promise<ProductWithPhotosAndUnits[]> {
