@@ -20,7 +20,7 @@ npm run build
 # Opsi A: Jika pakai Docker
 if [ -f "docker-compose.yml" ]; then
     echo "🐳 Merestart container Docker..."
-    docker-compose up -d --build
+    docker compose up -d --build
 fi
 
 # Opsi B: Jika pakai PM2

@@ -74,7 +74,17 @@ export function registerAuthRoutes(app: Express): void {
       (req.session as any).userId = user.id;
 
       const { password: _, ...safeUser } = user;
-      res.json(safeUser);
+
+      // Ensure session is saved to DB before sending response
+      // This prevents race conditions on the subsequent /api/auth/user call
+      req.session.save((err) => {
+        if (err) {
+          console.error("[auth] Session save error:", err);
+          return res.status(500).json({ message: "Gagal menyimpan sesi" });
+        }
+        console.log(`[auth] Login berhasil: ${username}`);
+        res.json(safeUser);
+      });
     } catch (error) {
       console.error("Login error:", error);
       res.status(500).json({ message: "Gagal login" });

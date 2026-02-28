@@ -9,7 +9,7 @@ RUN npm install
 
 # Copy source and build
 COPY . .
-RUN npm run build
+RUN NODE_OPTIONS="--max-old-space-size=512" npm run build
 
 # Production Stage
 FROM node:20-slim

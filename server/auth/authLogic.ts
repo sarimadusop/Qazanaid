@@ -8,7 +8,7 @@ export function getSession() {
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     pool: pool, // Use the shared pool
-    createTableIfMissing: true,
+    createTableIfMissing: false, // Table is managed by Drizzle in shared/models/auth.ts
     ttl: sessionTtl / 1000,
     tableName: "sessions",
   });
