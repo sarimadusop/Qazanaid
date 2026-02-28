@@ -21,6 +21,13 @@ const localUrl = process.env.DATABASE_URL;
 // supabaseUrl is only used as a fallback.
 let databaseUrl = localUrl || supabaseUrl;
 
+// Fallback logic for when running on VPS host directly (not inside container)
+// We replace 'db' hostname with 'localhost' because 'db' is only resolvable within Docker.
+if (databaseUrl && databaseUrl.includes("@db:")) {
+  console.log(`[db] Memperbaiki koneksi: Mengganti '@db:' ke '@localhost:' untuk akses host...`);
+  databaseUrl = databaseUrl.replace("@db:", "@localhost:");
+}
+
 if (!databaseUrl) {
   throw new Error("SUPABASE_DATABASE_URL or DATABASE_URL must be set.");
 }

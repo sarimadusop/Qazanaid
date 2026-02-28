@@ -2,6 +2,7 @@ import { pool } from "./server/db";
 
 async function main() {
     console.log("Memperbaiki nilai sequence di database...");
+
     try {
         const client = await pool.connect();
 
