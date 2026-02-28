@@ -9,7 +9,7 @@
     "start": "cross-env NODE_ENV=production node --env-file=.env dist/index.cjs",
     "check": "tsc",
     "db:push": "drizzle-kit push",
-    "db:fix-sequences": "tsx fix_db_sequences.ts"
+    "db:fix-sequences": "tsx --env-file=.env fix_db_sequences.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",
