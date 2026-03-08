@@ -25,10 +25,11 @@ if (!databaseUrl) {
   throw new Error("SUPABASE_DATABASE_URL or DATABASE_URL must be set.");
 }
 
-// Auto-fallback for local development: if hostname is "db" but we're not inside Docker/Production
-// Also check if we're on Windows, as 'db' is definitely a Docker-only hostname
-if (databaseUrl.includes('@db') && (process.env.NODE_ENV !== 'production' || process.platform === 'win32')) {
-  console.log('[db] Running in development/Windows mode, switching host from "db" to "localhost"...');
+// Auto-fallback for local development or host-based deployments: 
+// If hostname is "db" but we're on Windows or NOT in a Docker environment
+const isDocker = process.env.IS_DOCKER === 'true' || require('fs').existsSync('/.dockerenv');
+if (databaseUrl.includes('@db') && (!isDocker || process.platform === 'win32')) {
+  console.log('[db] Host "db" detected on non-docker/Windows environment. Switching to "localhost"...');
   databaseUrl = databaseUrl.replace('@db', '@localhost');
 }
 
@@ -39,8 +40,22 @@ export const pool = new Pool({
   connectionString: databaseUrl,
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000, // Fail fast (5s) to allow better error visibility
+  connectionTimeoutMillis: 10000,
 });
+
+// Verifikasi koneksi saat startup
+pool.connect((err, client, release) => {
+  if (err) {
+    console.error('[db] KONEKSI DATABASE GAGAL:', err.message);
+    if (databaseUrl.includes('db:5432')) {
+      console.warn('[db] Hint: Jika Postgres jalan di Docker tapi App jalan di PM2 (Host), gunakan "localhost" bukan "db" di file .env');
+    }
+  } else {
+    console.log('[db] Koneksi database berhasil terhubung.');
+    release();
+  }
+});
+
 
 // Explicitly check connection once to log success/failure at startup
 pool.on('error', (err) => {
