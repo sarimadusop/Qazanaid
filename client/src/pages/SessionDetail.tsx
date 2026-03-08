@@ -1649,29 +1649,38 @@ const MobileRecordCard = memo(({ record, sessionId, readOnly, isCompleted, isGud
         </div>
         <div className="flex gap-2">
           {!readOnly && !isBackedUp && (
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-col items-end gap-1.5 min-w-[120px]">
               <Button
                 variant="outline"
                 size="sm"
-                className={cn("h-9 rounded-xl transition-all shadow-sm", activeJob ? "border-primary bg-primary/5 text-primary" : "bg-white border-dashed border-primary/30 text-primary")}
+                className={cn(
+                  "h-10 rounded-xl transition-all shadow-sm w-full font-bold",
+                  activeJob
+                    ? "border-amber-500 bg-amber-50 text-amber-700"
+                    : "bg-white border-primary/30 text-primary hover:bg-primary/5"
+                )}
                 disabled={!!activeJob}
                 onClick={() => setBatchPhotoOpen(true)}
               >
                 {activeJob ? (
-                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
-                  <Camera className="w-3.5 h-3.5 mr-1.5" />
+                  <Camera className="w-4 h-4 mr-2" />
                 )}
-                {activeJob ? `Mengupload (${activeJob.progress}/${activeJob.total})` : "Ambil Foto"}
+                {activeJob ? `Upload (${activeJob.progress}/${activeJob.total})` : "Ambil Foto"}
               </Button>
               {activeJob && (
-                <Progress
-                  value={(activeJob.progress / activeJob.total) * 100}
-                  className="h-1.5 w-full bg-muted/50"
-                />
+                <div className="w-full space-y-1">
+                  <Progress
+                    value={(activeJob.progress / activeJob.total) * 100}
+                    className="h-2 w-full bg-amber-100"
+                  />
+                  <p className="text-[9px] text-amber-600 font-bold text-center animate-pulse">MEMPROSES FOTO...</p>
+                </div>
               )}
             </div>
           )}
+
           {!isBackedUp && (
             <Button variant="ghost" size="sm" className="h-8 rounded-xl text-muted-foreground" onClick={() => {
               if (allPhotos.length > 0) {

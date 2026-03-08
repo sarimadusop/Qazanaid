@@ -23,6 +23,7 @@ export function BatchPhotoUpload({ open, onOpenChange, onUpload, title = "Ambil 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const nativeCameraInputRef = useRef<HTMLInputElement>(null);
   const mountedRef = useRef(true);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
@@ -244,7 +245,7 @@ export function BatchPhotoUpload({ open, onOpenChange, onUpload, title = "Ambil 
               <Button
                 variant="outline"
                 size="icon"
-                className="rounded-full bg-background/60 backdrop-blur-sm border-background/30"
+                className="rounded-full bg-background/60 backdrop-blur-sm border-background/30 h-12 w-12"
                 onClick={() => fileInputRef.current?.click()}
                 data-testid="button-batch-gallery"
               >
@@ -253,16 +254,16 @@ export function BatchPhotoUpload({ open, onOpenChange, onUpload, title = "Ambil 
 
               <button
                 onClick={capturePhoto}
-                className="w-14 h-14 rounded-full border-4 border-white bg-white/20 backdrop-blur-sm active:scale-90 transition-transform flex items-center justify-center"
+                className="w-16 h-16 rounded-full border-4 border-white bg-white/20 backdrop-blur-sm active:scale-90 transition-transform flex items-center justify-center"
                 data-testid="button-capture-photo"
               >
-                <div className="w-11 h-11 rounded-full bg-white" />
+                <div className="w-12 h-12 rounded-full bg-white" />
               </button>
 
               <Button
                 variant="outline"
                 size="icon"
-                className="rounded-full bg-background/60 backdrop-blur-sm border-background/30"
+                className="rounded-full bg-background/60 backdrop-blur-sm border-background/30 h-10 w-10 sm:h-12 sm:w-12"
                 onClick={switchCamera}
                 data-testid="button-switch-camera"
               >
@@ -270,6 +271,19 @@ export function BatchPhotoUpload({ open, onOpenChange, onUpload, title = "Ambil 
               </Button>
             </div>
           )}
+
+          <div className="absolute top-3 left-3 flex flex-col gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-black/40 border-white/20 text-white rounded-full backdrop-blur-md hover:bg-black/60 font-bold px-4"
+              onClick={() => nativeCameraInputRef.current?.click()}
+            >
+              <Camera className="w-4 h-4 mr-2" />
+              Kamera Sistem (Stabil)
+            </Button>
+          </div>
+
 
           {photos.length > 0 && (
             <div className="absolute top-3 right-3 bg-primary text-primary-foreground rounded-full w-7 h-7 flex items-center justify-center text-sm font-bold" data-testid="text-photo-count">
@@ -339,6 +353,14 @@ export function BatchPhotoUpload({ open, onOpenChange, onUpload, title = "Ambil 
           className="hidden"
           onChange={handleGallerySelect}
           data-testid="input-batch-gallery"
+        />
+        <input
+          ref={nativeCameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={handleGallerySelect}
         />
       </DialogContent>
     </Dialog>

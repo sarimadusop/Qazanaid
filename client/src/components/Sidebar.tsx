@@ -7,12 +7,16 @@ import { useRole } from "@/hooks/use-role";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useBackgroundUpload } from "@/hooks/../components/BackgroundUpload";
+import { Loader2, Upload } from "lucide-react";
+
 
 export function Sidebar() {
   const [location] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const { user, logout } = useAuth();
   const { role, isAdmin, isSKUManager } = useRole();
+  const { activeCount } = useBackgroundUpload();
 
   const isStockCounterOnly = role === "stock_counter" || role === "stock_counter_toko" || role === "stock_counter_gudang";
 
@@ -58,8 +62,19 @@ export function Sidebar() {
           <span className="font-display font-bold text-lg text-white tracking-tight">Kazana</span>
         </div>
         <button onClick={() => setIsOpen(!isOpen)} className="p-2 -mr-2 text-white/80" data-testid="button-mobile-menu">
-          {isOpen ? <X /> : <Menu />}
+          {isOpen ? <X /> : (
+            <div className="relative">
+              <Menu />
+              {activeCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                </span>
+              )}
+            </div>
+          )}
         </button>
+
       </div>
 
       <div className={cn(
@@ -104,7 +119,22 @@ export function Sidebar() {
                 </Link>
               );
             })}
+
+            {activeCount > 0 && (
+              <div className="px-4 py-3 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md animate-pulse">
+                <div className="flex items-center gap-3">
+                  <div className="bg-amber-500/20 p-2 rounded-lg">
+                    <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-bold text-amber-200 uppercase tracking-wider">Uploading</p>
+                    <p className="text-xs text-white/80">{activeCount} antrean foto...</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </nav>
+
 
           <div className="p-4 border-t border-white/10 space-y-3 z-10">
             <div className="bg-black/20 rounded-2xl p-3 flex items-center gap-3 border border-white/5">

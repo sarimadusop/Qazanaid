@@ -32,7 +32,12 @@ async function getStampText(): Promise<string> {
 
 export function compressImage(file: File, maxWidth = 1000, quality = 0.6): Promise<File> {
   return new Promise((resolve, reject) => {
-    if (!file.type.startsWith("image/") && !file.name.toLowerCase().endsWith(".heic")) {
+    // Check if it's an image or potential Apple HEIC format
+    const isImage = file.type.startsWith("image/") ||
+      file.name.toLowerCase().endsWith(".heic") ||
+      file.name.toLowerCase().endsWith(".heif");
+
+    if (!isImage) {
       resolve(file);
       return;
     }
@@ -45,6 +50,12 @@ export function compressImage(file: File, maxWidth = 1000, quality = 0.6): Promi
 
       let width = img.width;
       let height = img.height;
+
+      // Handle cases where image load might return invalid dimensions
+      if (width === 0 || height === 0) {
+        resolve(file);
+        return;
+      }
 
       if (width > maxWidth) {
         const ratio = maxWidth / width;
@@ -65,32 +76,36 @@ export function compressImage(file: File, maxWidth = 1000, quality = 0.6): Promi
       ctx.drawImage(img, 0, 0, width, height);
 
       // Add Photostamp
-      const stamp = await getStampText();
-      const fontSize = Math.max(Math.floor(width / 35), 14);
-      ctx.font = `bold ${fontSize}px sans-serif`;
+      try {
+        const stamp = await getStampText();
+        const fontSize = Math.max(Math.floor(width / 35), 14);
+        ctx.font = `bold ${fontSize}px sans-serif`;
 
-      const padding = 10;
-      const textMetrics = ctx.measureText(stamp);
-      const rectWidth = textMetrics.width + padding * 2;
-      const rectHeight = fontSize + padding;
+        const padding = 10;
+        const textMetrics = ctx.measureText(stamp);
+        const rectWidth = textMetrics.width + padding * 2;
+        const rectHeight = fontSize + padding;
 
-      // Bottom-right position
-      const x = width - rectWidth - 10;
-      const y = height - rectHeight - 10;
+        // Bottom-right position
+        const x = width - rectWidth - 10;
+        const y = height - rectHeight - 10;
 
-      // Semi-transparent background
-      ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
-      if (ctx.roundRect) {
-        ctx.roundRect(x, y, rectWidth, rectHeight, 8);
-        ctx.fill();
-      } else {
-        ctx.fillRect(x, y, rectWidth, rectHeight);
+        // Semi-transparent background
+        ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+        if (ctx.roundRect) {
+          ctx.roundRect(x, y, rectWidth, rectHeight, 8);
+          ctx.fill();
+        } else {
+          ctx.fillRect(x, y, rectWidth, rectHeight);
+        }
+
+        // White text
+        ctx.fillStyle = "white";
+        ctx.textBaseline = "middle";
+        ctx.fillText(stamp, x + padding, y + rectHeight / 2 + 1);
+      } catch (stampErr) {
+        console.warn("Failed to apply photostamp, uploading without it", stampErr);
       }
-
-      // White text
-      ctx.fillStyle = "white";
-      ctx.textBaseline = "middle";
-      ctx.fillText(stamp, x + padding, y + rectHeight / 2 + 1);
 
       canvas.toBlob(
         (blob) => {
@@ -112,9 +127,12 @@ export function compressImage(file: File, maxWidth = 1000, quality = 0.6): Promi
 
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error("Failed to load image for compression"));
+      // Fallback: send the original file if compression fails (e.g. unsupported format)
+      console.warn("Image load failed for compression, using original file", file.name);
+      resolve(file);
     };
 
     img.src = url;
   });
 }
+
