@@ -351,9 +351,11 @@ export default function SessionDetail() {
               try {
                 const res = await fetch('/api/debug-photos');
                 const data = await res.json();
-                alert(JSON.stringify(data, null, 2));
+                const output = `--- DISK INFO ---\n${data.disk}\n\n--- SERVER LOGS ---\n${data.logs}`;
+                console.log(output);
+                alert(output);
               } catch (e) {
-                alert(String(e));
+                alert("Failed to fetch debug info: " + String(e));
               }
             }}>DEBUG FOTO VPS</Button>
 

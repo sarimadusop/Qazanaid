@@ -426,6 +426,7 @@ export async function registerRoutes(
   // === Photo Upload (legacy single photo) ===
   app.post(api.upload.photo.path, isAuthenticated, requireRole("admin", "sku_manager"), upload.single("photo"), async (req, res) => {
     try {
+      diskLog(`[LEGACY PHOTO] Req params: productId=${req.params.productId}`);
       const productId = Number(req.params.productId);
       const adminId = await getTeamAdminId(req);
       const product = await storage.getProduct(productId);
@@ -434,15 +435,16 @@ export async function registerRoutes(
       }
 
       if (!req.file) {
+        diskLog(`[LEGACY PHOTO] No file!`);
         return res.status(400).json({ message: "No file uploaded" });
       }
 
       const url = await uploadToObjectStorage(req.file);
       await storage.updateProduct(productId, { photoUrl: url });
-
+      diskLog(`[LEGACY PHOTO] SUCCESS: ${url}`);
       res.json({ url });
     } catch (err) {
-      console.error("Upload error:", err);
+      diskLog(`[LEGACY PHOTO] ERROR: ${String(err)}`);
       res.status(500).json({ message: "Upload failed" });
     }
   });
@@ -450,6 +452,7 @@ export async function registerRoutes(
   // === Opname Photo Upload (legacy single photo) ===
   app.post(api.upload.opnamePhoto.path, isAuthenticated, upload.single("photo"), async (req, res) => {
     try {
+      diskLog(`[LEGACY OPNAME] Req params: sessionId=${req.params.sessionId}, productId=${req.params.productId}`);
       const sessionId = Number(req.params.sessionId);
       const productId = Number(req.params.productId);
       const adminId = await getTeamAdminId(req);
@@ -465,15 +468,16 @@ export async function registerRoutes(
       }
 
       if (!req.file) {
+        diskLog(`[LEGACY OPNAME] No file!`);
         return res.status(400).json({ message: "No file uploaded" });
       }
 
       const url = await uploadToObjectStorage(req.file);
       await storage.updateRecordPhoto(sessionId, productId, url);
-
+      diskLog(`[LEGACY OPNAME] SUCCESS: ${url}`);
       res.json({ url });
     } catch (err) {
-      console.error("Opname photo upload error:", err);
+      diskLog(`[LEGACY OPNAME] ERROR: ${String(err)}`);
       res.status(500).json({ message: "Upload failed" });
     }
   });
@@ -485,14 +489,32 @@ export async function registerRoutes(
       if (fs.existsSync(logPath)) {
         logs = fs.readFileSync(logPath, 'utf8');
       }
-      res.type('text').send(logs);
+
+      const { execSync } = await import('child_process');
+      let diskInfo = "Unknown";
+      try {
+        diskInfo = execSync('df -h /').toString();
+      } catch (e) {
+        diskInfo = "Failed to get disk info: " + String(e);
+      }
+
+      res.json({
+        disk: diskInfo,
+        logs: logs.split('\n').length > 30 ? logs.split('\n').slice(-30).join('\n') : logs
+      });
     } catch (err) {
-      res.status(500).send(String(err));
+      res.status(500).json({ error: String(err) });
     }
   });
 
   function diskLog(msg: string) {
-    fs.appendFileSync(path.join(process.cwd(), 'debug-upload.txt'), new Date().toISOString() + " - " + msg + "\n");
+    try {
+      const logMsg = `${new Date().toISOString()} - ${msg}\n`;
+      fs.appendFileSync(path.join(process.cwd(), 'debug-upload.txt'), logMsg);
+      console.log(`[DISKLOG] ${logMsg.trim()}`);
+    } catch (e) {
+      console.error("DISK LOG FAILED TO WRITE:", e);
+    }
   }
 
   // === Opname Record Photos (multi-photo for SO) ===
