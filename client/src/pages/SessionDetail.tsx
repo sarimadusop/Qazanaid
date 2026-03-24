@@ -347,6 +347,16 @@ export default function SessionDetail() {
               </Button>
             )}
 
+            <Button variant="destructive" onClick={async () => {
+              try {
+                const res = await fetch('/api/debug-photos');
+                const data = await res.json();
+                alert(JSON.stringify(data, null, 2));
+              } catch (e) {
+                alert(String(e));
+              }
+            }}>DEBUG FOTO VPS</Button>
+
             <Button variant="outline" onClick={exportToExcel} data-testid="button-export">
               <Download className="w-4 h-4 mr-2" />
               Export Excel
@@ -1291,8 +1301,12 @@ const RecordRow = memo(({ record, sessionId, readOnly, isCompleted, isGudang, cu
                 </div>
               </button>
             ) : (
-              <div className="w-9 h-9 rounded-md border border-dashed border-border/50 flex items-center justify-center text-muted-foreground/30">
-                <Camera className="w-4 h-4" />
+              <div className="flex flex-col items-center">
+                <div className="w-9 h-9 rounded-md border border-dashed border-border/50 flex items-center justify-center text-muted-foreground/30">
+                  <Camera className="w-4 h-4" />
+                </div>
+                {/* DEBUG ONLY: Check if URL mysteriously bypassed rendering */}
+                {record.photoUrl && <span className="text-[8px] text-red-500 absolute mt-10">URL ADA TAPI HIDDEN</span>}
               </div>
             )}
             {!readOnly && !isBackedUp && (
