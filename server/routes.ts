@@ -28,7 +28,7 @@ import { db } from "./db";
 import { storageService } from "./lib/storage-provider";
 
 
-const upload = multer({ dest: path.join(os.tmpdir(), "kazana-uploads"), limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({ dest: path.join(os.tmpdir(), "kazana-uploads"), limits: { fileSize: 50 * 1024 * 1024 } });
 
 async function uploadToObjectStorage(file: Express.Multer.File): Promise<string> {
   const fileBuffer = fs.readFileSync(file.path);
