@@ -480,58 +480,71 @@ export async function registerRoutes(
   // === DEBUG PHOTOS ===
   app.get('/api/debug-photos', async (req, res) => {
     try {
-      const records = await db.query.opnameRecords.findMany({
-        with: { photos: true },
-        limit: 50,
-        orderBy: (opnameRecords, { desc }) => [desc(opnameRecords.id)]
-      });
-      res.json({
-        recentRecords: records.map(r => ({
-          id: r.id, sessionId: r.sessionId, productId: r.productId,
-          photoUrl: r.photoUrl,
-          photosCount: r.photos?.length,
-          photos: r.photos
-        }))
-      });
+      const logPath = path.join(process.cwd(), 'debug-upload.txt');
+      let logs = "Log file not found.";
+      if (fs.existsSync(logPath)) {
+        logs = fs.readFileSync(logPath, 'utf8');
+      }
+      res.type('text').send(logs);
     } catch (err) {
-      res.status(500).json({ error: String(err) });
+      res.status(500).send(String(err));
     }
   });
+
+  function diskLog(msg: string) {
+    fs.appendFileSync(path.join(process.cwd(), 'debug-upload.txt'), new Date().toISOString() + " - " + msg + "\n");
+  }
 
   // === Opname Record Photos (multi-photo for SO) ===
   app.post(api.recordPhotos.upload.path, isAuthenticated, upload.single("photo"), async (req, res) => {
     try {
+      diskLog(`============= UPLOAD STARTED =============`);
       const sessionId = Number(req.params.sessionId);
       const productId = Number(req.params.productId);
       const adminId = await getTeamAdminId(req);
+      diskLog(`Req params: sessionId=${sessionId}, productId=${productId}, adminId=${adminId}`);
 
       const session = await storage.getSession(sessionId);
+      diskLog(`Session found: ${!!session}, records count: ${session?.records?.length}`);
       if (!session || session.userId !== adminId) {
+        diskLog(`Auth failed or session null`);
         return res.status(404).json({ message: "Session not found" });
       }
 
       const product = await storage.getProduct(productId);
+      diskLog(`Product found: ${!!product}`);
       if (!product || product.userId !== adminId) {
         return res.status(404).json({ message: "Product not found" });
       }
 
       if (!req.file) {
+        diskLog(`No req.file!`);
         return res.status(400).json({ message: "No file uploaded" });
       }
 
+      diskLog(`Uploading to object storage...`);
       const url = await uploadToObjectStorage(req.file);
+      diskLog(`Object storage success, url=${url}`);
 
       const record = session.records.find(r => r.productId === productId);
+      diskLog(`Record found in session: ${!!record} (id: ${record?.id})`);
+
       if (record) {
         const recordPhoto = await storage.addRecordPhoto({ recordId: record.id, url });
+        diskLog(`addRecordPhoto success! photo.id: ${recordPhoto?.id}`);
+
         await storage.updateRecordPhoto(sessionId, productId, url);
+        diskLog(`updateRecordPhoto success!`);
+
         res.status(201).json(recordPhoto);
       } else {
         await storage.updateRecordPhoto(sessionId, productId, url);
+        diskLog(`updateRecordPhoto (no existing) success!`);
         res.status(201).json({ url });
       }
+      diskLog(`============= UPLOAD COMPLETED SUCCESSFULLY =============`);
     } catch (err) {
-      console.error("Record photo upload error:", err);
+      diskLog(`UPLOAD THREW ERROR: ${String(err)}`);
       res.status(500).json({ message: (err as Error).message || "Upload failed" });
     }
   });
