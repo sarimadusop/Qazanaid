@@ -4,18 +4,6 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import path from "path";
-import fs from "fs";
-
-const LOG_PATH = "/tmp/debug-upload.txt";
-
-function diskLog(msg: string) {
-  try {
-    const logMsg = `${new Date().toISOString()} - [INDEX] ${msg}\n`;
-    fs.appendFileSync(LOG_PATH, logMsg);
-  } catch (e) {
-    console.error("DISK LOG FAILED:", e);
-  }
-}
 
 
 const app = express();
@@ -78,9 +66,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  diskLog("SERVER STARTING - Registering Routes...");
   await registerRoutes(httpServer, app);
-  diskLog("SERVER STARTING - Routes Registered.");
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

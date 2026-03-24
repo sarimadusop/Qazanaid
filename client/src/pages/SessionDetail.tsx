@@ -347,17 +347,7 @@ export default function SessionDetail() {
               </Button>
             )}
 
-            <Button variant="destructive" onClick={async () => {
-              try {
-                const res = await fetch('/api/debug-photos');
-                const data = await res.json();
-                const output = `--- DISK INFO ---\n${data.disk}\n\n--- SERVER LOGS ---\n${data.logs}`;
-                console.log(output);
-                alert(output);
-              } catch (e) {
-                alert("Failed to fetch debug info: " + String(e));
-              }
-            }}>DEBUG FOTO VPS</Button>
+
 
             <Button variant="outline" onClick={exportToExcel} data-testid="button-export">
               <Download className="w-4 h-4 mr-2" />

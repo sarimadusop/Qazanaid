@@ -9,18 +9,6 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import * as XLSX from "xlsx";
-
-const LOG_PATH = "/tmp/debug-upload.txt";
-
-function diskLog(msg: string) {
-  try {
-    const logMsg = `${new Date().toISOString()} - ${msg}\n`;
-    fs.appendFileSync(LOG_PATH, logMsg);
-    console.log(`[DISKLOG] ${logMsg.trim()}`);
-  } catch (e) {
-    console.error("DISK LOG FAILED TO WRITE:", e);
-  }
-}
 import { authStorage } from "./auth/storage";
 import archiver from "archiver";
 import { productPhotos, opnameRecordPhotos } from "@shared/schema";
@@ -438,7 +426,6 @@ export async function registerRoutes(
   // === Photo Upload (legacy single photo) ===
   app.post(api.upload.photo.path, isAuthenticated, requireRole("admin", "sku_manager"), upload.single("photo"), async (req, res) => {
     try {
-      diskLog(`[LEGACY PHOTO] Req params: productId=${req.params.productId}`);
       const productId = Number(req.params.productId);
       const adminId = await getTeamAdminId(req);
       const product = await storage.getProduct(productId);
@@ -447,16 +434,14 @@ export async function registerRoutes(
       }
 
       if (!req.file) {
-        diskLog(`[LEGACY PHOTO] No file!`);
         return res.status(400).json({ message: "No file uploaded" });
       }
 
       const url = await uploadToObjectStorage(req.file);
       await storage.updateProduct(productId, { photoUrl: url });
-      diskLog(`[LEGACY PHOTO] SUCCESS: ${url}`);
       res.json({ url });
     } catch (err) {
-      diskLog(`[LEGACY PHOTO] ERROR: ${String(err)}`);
+      console.error("Upload error:", err);
       res.status(500).json({ message: "Upload failed" });
     }
   });
@@ -464,7 +449,6 @@ export async function registerRoutes(
   // === Opname Photo Upload (legacy single photo) ===
   app.post(api.upload.opnamePhoto.path, isAuthenticated, upload.single("photo"), async (req, res) => {
     try {
-      diskLog(`[LEGACY OPNAME] Req params: sessionId=${req.params.sessionId}, productId=${req.params.productId}`);
       const sessionId = Number(req.params.sessionId);
       const productId = Number(req.params.productId);
       const adminId = await getTeamAdminId(req);
@@ -480,104 +464,53 @@ export async function registerRoutes(
       }
 
       if (!req.file) {
-        diskLog(`[LEGACY OPNAME] No file!`);
         return res.status(400).json({ message: "No file uploaded" });
       }
 
       const url = await uploadToObjectStorage(req.file);
       await storage.updateRecordPhoto(sessionId, productId, url);
-      diskLog(`[LEGACY OPNAME] SUCCESS: ${url}`);
       res.json({ url });
     } catch (err) {
-      diskLog(`[LEGACY OPNAME] ERROR: ${String(err)}`);
+      console.error("Opname photo upload error:", err);
       res.status(500).json({ message: "Upload failed" });
     }
   });
-  // === DEBUG PHOTOS ===
-  app.get('/api/debug-photos', async (req, res) => {
-    try {
-      let logs = "Log file not found at " + LOG_PATH;
-      if (fs.existsSync(LOG_PATH)) {
-        logs = fs.readFileSync(LOG_PATH, 'utf8');
-      }
-
-      const { execSync } = await import('child_process');
-      let diskInfo = "Unknown";
-      try {
-        diskInfo = "ROOT DISK:\n" + execSync('df -h /').toString() + "\nTMP DISK:\n" + execSync('df -h /tmp').toString();
-      } catch (e) {
-        diskInfo = "Failed to get disk info: " + String(e);
-      }
-
-      res.json({
-        disk: diskInfo,
-        logs: logs.split('\n').length > 50 ? logs.split('\n').slice(-50).join('\n') : logs
-      });
-    } catch (err) {
-      res.status(500).json({ error: String(err) });
-    }
-  });
-
-  function diskLog(msg: string) {
-    try {
-      const logMsg = `${new Date().toISOString()} - ${msg}\n`;
-      fs.appendFileSync(path.join(process.cwd(), 'debug-upload.txt'), logMsg);
-      console.log(`[DISKLOG] ${logMsg.trim()}`);
-    } catch (e) {
-      console.error("DISK LOG FAILED TO WRITE:", e);
-    }
-  }
 
   // === Opname Record Photos (multi-photo for SO) ===
   app.post(api.recordPhotos.upload.path, isAuthenticated, upload.single("photo"), async (req, res) => {
     try {
-      diskLog(`============= UPLOAD STARTED =============`);
       const sessionId = Number(req.params.sessionId);
       const productId = Number(req.params.productId);
       const adminId = await getTeamAdminId(req);
-      diskLog(`Req params: sessionId=${sessionId}, productId=${productId}, adminId=${adminId}`);
 
       const session = await storage.getSession(sessionId);
-      diskLog(`Session found: ${!!session}, records count: ${session?.records?.length}`);
       if (!session || session.userId !== adminId) {
-        diskLog(`Auth failed or session null`);
         return res.status(404).json({ message: "Session not found" });
       }
 
       const product = await storage.getProduct(productId);
-      diskLog(`Product found: ${!!product}`);
       if (!product || product.userId !== adminId) {
         return res.status(404).json({ message: "Product not found" });
       }
 
       if (!req.file) {
-        diskLog(`No req.file!`);
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      diskLog(`Uploading to object storage...`);
       const url = await uploadToObjectStorage(req.file);
-      diskLog(`Object storage success, url=${url}`);
 
       const record = session.records.find(r => r.productId === productId);
-      diskLog(`Record found in session: ${!!record} (id: ${record?.id})`);
 
       if (record) {
         const recordPhoto = await storage.addRecordPhoto({ recordId: record.id, url });
-        diskLog(`addRecordPhoto success! photo.id: ${recordPhoto?.id}`);
-
         await storage.updateRecordPhoto(sessionId, productId, url);
-        diskLog(`updateRecordPhoto success!`);
-
         res.status(201).json(recordPhoto);
       } else {
         await storage.updateRecordPhoto(sessionId, productId, url);
-        diskLog(`updateRecordPhoto (no existing) success!`);
         res.status(201).json({ url });
       }
-      diskLog(`============= UPLOAD COMPLETED SUCCESSFULLY =============`);
     } catch (err) {
-      diskLog(`UPLOAD THREW ERROR: ${String(err)}`);
+      console.error("Upload error:", err);
       res.status(500).json({ message: (err as Error).message || "Upload failed" });
     }
   });
