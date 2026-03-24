@@ -504,7 +504,7 @@ export async function registerRoutes(
       const { execSync } = await import('child_process');
       let diskInfo = "Unknown";
       try {
-        diskInfo = execSync('df -h /').toString();
+        diskInfo = "ROOT DISK:\n" + execSync('df -h /').toString() + "\nTMP DISK:\n" + execSync('df -h /tmp').toString();
       } catch (e) {
         diskInfo = "Failed to get disk info: " + String(e);
       }
