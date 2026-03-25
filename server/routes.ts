@@ -68,6 +68,10 @@ export async function registerRoutes(
   registerAuthRoutes(app);
 
   // === Diagnostic ===
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", message: "Server is alive", time: new Date().toISOString() });
+  });
+
   console.log("[server] Registering diagnostic route: /api/diag/db");
   app.get("/api/diag/db", async (req, res) => {
     const { pool } = await import("./db");
