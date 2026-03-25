@@ -117,6 +117,74 @@ export const categoryPriorities = pgTable("category_priorities", {
   userId: text("user_id").notNull(),
 });
 
+export const branches = pgTable("branches", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  address: text("address"),
+  active: integer("active").default(1).notNull(),
+});
+
+export const receivingSessions = pgTable("receiving_sessions", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  status: text("status", { enum: ["in_progress", "completed"] }).default("in_progress").notNull(),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  notes: text("notes"),
+  userId: text("user_id").notNull(),
+  senderName: text("sender_name"),
+  receiverName: text("receiver_name"),
+  senderSignature: text("sender_signature"),
+  receiverSignature: text("receiver_signature"),
+});
+
+export const receivingRecords = pgTable("receiving_records", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => receivingSessions.id).notNull(),
+  productId: integer("product_id").references(() => products.id).notNull(),
+  quantityReceived: integer("quantity_received").notNull(),
+  notes: text("notes"),
+  countedBy: text("counted_by"),
+});
+
+export const receivingRecordPhotos = pgTable("receiving_record_photos", {
+  id: serial("id").primaryKey(),
+  recordId: integer("record_id").references(() => receivingRecords.id, { onDelete: "cascade" }).notNull(),
+  url: text("url").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const transferSessions = pgTable("transfer_sessions", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  status: text("status", { enum: ["in_progress", "completed"] }).default("in_progress").notNull(),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  notes: text("notes"),
+  userId: text("user_id").notNull(),
+  fromLocation: text("from_location"),
+  toBranchId: integer("to_branch_id").references(() => branches.id),
+  senderName: text("sender_name"),
+  driverName: text("driver_name"),
+  senderSignature: text("sender_signature"),
+  driverSignature: text("driver_signature"),
+});
+
+export const transferRecords = pgTable("transfer_records", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => transferSessions.id).notNull(),
+  productId: integer("product_id").references(() => products.id).notNull(),
+  quantityTransferred: integer("quantity_transferred").notNull(),
+  notes: text("notes"),
+});
+
+export const transferRecordPhotos = pgTable("transfer_record_photos", {
+  id: serial("id").primaryKey(),
+  recordId: integer("record_id").references(() => transferRecords.id, { onDelete: "cascade" }).notNull(),
+  url: text("url").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // === Relations ===
 
 export const productPhotosRelations = relations(productPhotos, ({ one }) => ({
@@ -163,6 +231,60 @@ export const opnameSessionsRelations = relations(opnameSessions, ({ many }) => (
 
 export const staffMembersRelations = relations(staffMembers, ({ }) => ({}));
 
+export const branchesRelations = relations(branches, ({ many }) => ({
+  transfers: many(transferSessions),
+}));
+
+export const receivingSessionsRelations = relations(receivingSessions, ({ many }) => ({
+  records: many(receivingRecords),
+}));
+
+export const receivingRecordsRelations = relations(receivingRecords, ({ one, many }) => ({
+  session: one(receivingSessions, {
+    fields: [receivingRecords.sessionId],
+    references: [receivingSessions.id],
+  }),
+  product: one(products, {
+    fields: [receivingRecords.productId],
+    references: [products.id],
+  }),
+  photos: many(receivingRecordPhotos),
+}));
+
+export const receivingRecordPhotosRelations = relations(receivingRecordPhotos, ({ one }) => ({
+  record: one(receivingRecords, {
+    fields: [receivingRecordPhotos.recordId],
+    references: [receivingRecords.id],
+  }),
+}));
+
+export const transferSessionsRelations = relations(transferSessions, ({ one, many }) => ({
+  records: many(transferRecords),
+  toBranch: one(branches, {
+    fields: [transferSessions.toBranchId],
+    references: [branches.id],
+  }),
+}));
+
+export const transferRecordsRelations = relations(transferRecords, ({ one, many }) => ({
+  session: one(transferSessions, {
+    fields: [transferRecords.sessionId],
+    references: [transferSessions.id],
+  }),
+  product: one(products, {
+    fields: [transferRecords.productId],
+    references: [products.id],
+  }),
+  photos: many(transferRecordPhotos),
+}));
+
+export const transferRecordPhotosRelations = relations(transferRecordPhotos, ({ one }) => ({
+  record: one(transferRecords, {
+    fields: [transferRecordPhotos.recordId],
+    references: [transferRecords.id],
+  }),
+}));
+
 // === Insert Schemas ===
 
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, updatedAt: true });
@@ -176,6 +298,12 @@ export const insertAnnouncementSchema = createInsertSchema(announcements).omit({
 export const insertFeedbackSchema = createInsertSchema(feedback).omit({ id: true, createdAt: true });
 export const insertMotivationMessageSchema = createInsertSchema(motivationMessages).omit({ id: true });
 export const insertCategoryPrioritySchema = createInsertSchema(categoryPriorities).omit({ id: true });
+
+export const insertBranchSchema = createInsertSchema(branches).omit({ id: true });
+export const insertReceivingSessionSchema = createInsertSchema(receivingSessions).omit({ id: true, startedAt: true, completedAt: true });
+export const insertReceivingRecordSchema = createInsertSchema(receivingRecords).omit({ id: true });
+export const insertTransferSessionSchema = createInsertSchema(transferSessions).omit({ id: true, startedAt: true, completedAt: true });
+export const insertTransferRecordSchema = createInsertSchema(transferRecords).omit({ id: true });
 
 // === Types ===
 
@@ -213,6 +341,21 @@ export type InsertMotivationMessage = z.infer<typeof insertMotivationMessageSche
 
 export type CategoryPriority = typeof categoryPriorities.$inferSelect;
 export type InsertCategoryPriority = z.infer<typeof insertCategoryPrioritySchema>;
+
+export type Branch = typeof branches.$inferSelect;
+export type InsertBranch = z.infer<typeof insertBranchSchema>;
+
+export type ReceivingSession = typeof receivingSessions.$inferSelect;
+export type InsertReceivingSession = z.infer<typeof insertReceivingSessionSchema>;
+
+export type ReceivingRecord = typeof receivingRecords.$inferSelect;
+export type InsertReceivingRecord = z.infer<typeof insertReceivingRecordSchema>;
+
+export type TransferSession = typeof transferSessions.$inferSelect;
+export type InsertTransferSession = z.infer<typeof insertTransferSessionSchema>;
+
+export type TransferRecord = typeof transferRecords.$inferSelect;
+export type InsertTransferRecord = z.infer<typeof insertTransferRecordSchema>;
 
 export type ProductWithPhotosAndUnits = Product & { photos: ProductPhoto[]; units: ProductUnit[] };
 export type OpnameRecordWithProduct = OpnameRecord & { product: Product & { photos: ProductPhoto[]; units: ProductUnit[] }; photos: OpnameRecordPhoto[] };
