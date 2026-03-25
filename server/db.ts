@@ -2,6 +2,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "@shared/schema";
+import fs from 'fs';
 
 const { Pool } = pg;
 
@@ -17,15 +18,16 @@ function maskUrl(url: string) {
 let databaseUrl = process.env.DATABASE_URL;
 
 if (!databaseUrl) {
+  console.error("[db] ERROR: DATABASE_URL tidak ditemukan di process.env!");
   throw new Error("DATABASE_URL must be set (postgresql://user:pass@host:5432/dbname)");
 }
 
 // Auto-fallback for local development or host-based deployments: 
 // If hostname is "db" but we're on Windows or NOT in a Docker environment
-import fs from 'fs';
 const isDocker = process.env.IS_DOCKER === 'true' || fs.existsSync('/.dockerenv');
+console.log(`[db] Lingkungan: ${isDocker ? 'Docker' : 'Host (Non-Docker)'}, Platform: ${process.platform}`);
 if (databaseUrl.includes('@db') && (!isDocker || process.platform === 'win32')) {
-  console.log('[db] Host "db" detected on non-docker/Windows environment. Switching to "localhost"...');
+  console.log('[db] Host "db" terdeteksi di lingkungan non-docker/Windows. Mengalihkan ke "localhost"...');
   databaseUrl = databaseUrl.replace('@db', '@localhost');
 }
 

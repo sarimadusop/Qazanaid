@@ -3,7 +3,6 @@ module.exports = {
         {
             name: "kazana-app",
             script: "dist/index.cjs",
-            node_args: "--env-file=.env",
             instances: "max",
             exec_mode: "cluster",
             env: {
