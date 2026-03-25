@@ -8,7 +8,7 @@ export * from "./models/auth";
 export const userRoles = pgTable("user_roles", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull().unique(),
-  role: text("role", { enum: ["admin", "sku_manager", "stock_counter", "stock_counter_toko", "stock_counter_gudang"] }).default("stock_counter").notNull(),
+  role: text("role", { enum: ["admin", "driver", "sku_manager", "stock_counter", "stock_counter_toko", "stock_counter_gudang"] }).default("stock_counter").notNull(),
 });
 
 export const products = pgTable("products", {
