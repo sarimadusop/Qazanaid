@@ -13,7 +13,8 @@ export function serveStatic(app: Express) {
   app.use(express.static(distPath));
 
   // Handle any unhandled /api/* routes first to return JSON 404 instead of index.html
-  app.all("/api/:path*", (req, res) => {
+  // Using RegExp for absolute compatibility with Express 5+
+  app.all(/^\/api\/.*/, (req, res) => {
     res.status(404).json({
       message: `API Route ${req.method} ${req.path} not found`,
       error: "Not Found"
