@@ -2,8 +2,28 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    const contentType = res.headers.get("content-type");
+    let message = res.statusText;
+
+    if (contentType && contentType.includes("application/json")) {
+      try {
+        const errorData = await res.json();
+        message = errorData.message || errorData.error || message;
+      } catch (e) {
+        // Fallback to status text
+      }
+    } else if (contentType && contentType.includes("text/html")) {
+      message = `Server mengembalikan HTML (mungkin halaman error atau 404). Periksa apakah rute API ${res.url} sudah benar.`;
+    } else {
+      try {
+        const text = await res.text();
+        if (text) message = text.slice(0, 100);
+      } catch (e) {
+        // Fallback to status text
+      }
+    }
+
+    throw new Error(`${res.status}: ${message}`);
   }
 }
 
@@ -28,18 +48,18 @@ export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
-  async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
-      credentials: "include",
-    });
+    async ({ queryKey }) => {
+      const res = await fetch(queryKey.join("/") as string, {
+        credentials: "include",
+      });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
-    }
+      if (unauthorizedBehavior === "returnNull" && res.status === 401) {
+        return null;
+      }
 
-    await throwIfResNotOk(res);
-    return await res.json();
-  };
+      await throwIfResNotOk(res);
+      return await res.json();
+    };
 
 export const queryClient = new QueryClient({
   defaultOptions: {
